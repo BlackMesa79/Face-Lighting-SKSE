@@ -1,6 +1,6 @@
-# FaceLighting language files
+# Face Lighting SKSE language files
 
-FaceLighting 0.8.0 includes English (en.ini) and Simplified Chinese (zh-CN.ini). Earlier development packages without the Languages directory do not load translation files.
+Face Lighting SKSE 0.8.0 includes English (en.ini) and Simplified Chinese (zh-CN.ini). Earlier development packages without the Languages directory do not load translation files.
 
 ## Create a translation
 
@@ -44,7 +44,7 @@ You can select a file manually in the menu or set `Language=fr` in the settings 
 
 Missing, empty (except `empty`), or invalid individual strings fall back to English. Malformed files and invalid UTF-8 files are skipped. Unknown keys are ignored. File size is limited to 256 KiB and each line to 4096 bytes. English has an emergency fallback in the DLL so a missing language directory does not make the menu unusable.
 
-Files load at game startup; restart after editing or installing a translation. Check all three pages, dropdowns, CS status, save/discard notices, and sidebar labels. A translation requires a menu-framework font and glyph configuration that supports its characters. Chinese still requires the appropriate Chinese font configuration. FaceLighting does not install fonts or configure glyph ranges automatically.
+Files load at game startup; restart after editing or installing a translation. Check all three pages, dropdowns, CS status, save/discard notices, and sidebar labels. A translation requires a menu-framework font and glyph configuration that supports its characters. Chinese still requires the appropriate Chinese font configuration. Face Lighting SKSE does not install fonts or configure glyph ranges automatically.
 
 # 中文说明
 

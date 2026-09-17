@@ -1,4 +1,7 @@
-# FaceLighting / 面部光照
+# Face Lighting SKSE
+
+Public mod name: **Face Lighting SKSE**. The plugin filename ("FaceLighting.dll"),
+configuration paths and SKSE Menu Framework registration name remain unchanged.
 
 Adjustable face lighting for Skyrim Special Edition and Anniversary Edition,
 with SKSE Menu Framework settings and optional Community Shaders integration.
@@ -108,7 +111,7 @@ matching `.skse` co-save when copying saves.
 
 ## License
 
-Copyright (C) 2026 BlackMesa79. FaceLighting is released under [GPL-3.0](LICENSE.txt).
+Copyright (C) 2026 BlackMesa79. Face Lighting SKSE is released under [GPL-3.0](LICENSE.txt).
 Modification and redistribution are permitted under GPL-3.0. The software is provided without warranty; see [README.txt](README.txt) for the copyright and license notice.
 Vendored dependencies retain their respective licenses; see
 [Third-party notices](THIRD_PARTY_NOTICES.md).

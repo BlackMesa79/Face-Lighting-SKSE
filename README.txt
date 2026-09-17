@@ -1,12 +1,12 @@
-FaceLighting
+Face Lighting SKSE
 Copyright (C) 2026 BlackMesa79
 SPDX-License-Identifier: GPL-3.0-only
 
-FaceLighting is free software: you can redistribute it and/or modify it
+Face Lighting SKSE is free software: you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
 Free Software Foundation, version 3 of the License.
 
-FaceLighting is distributed in the hope that it will be useful,
+Face Lighting SKSE is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.

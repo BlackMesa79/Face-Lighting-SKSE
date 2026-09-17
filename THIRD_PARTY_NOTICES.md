@@ -1,6 +1,6 @@
 # Third-party notices
 
-Original FaceLighting code is distributed under GPL-3.0-only. Third-party files
+Original Face Lighting SKSE code is distributed under GPL-3.0-only. Third-party files
 retain their own copyright and license notices; they are not relicensed by
 the root license.
 
@@ -38,12 +38,12 @@ Xmake resolves DirectXMath, DirectXTK and spdlog from the versions declared in
 
 The color-temperature approximation is based on Tanner Helland's published
 algorithm: https://tannerhelland.com/2012/09/18/convert-temperature-rgb-algorithm-code.html
-FaceLighting normalizes the result around 6500 K and applies its own lighting
+Face Lighting SKSE normalizes the result around 6500 K and applies its own lighting
 pipeline handling. See `include/ColorTemperature.h`.
 
 ## Menu design references
 
 The layout was informed by Cinematic Idle Camera and Cinematic Conversation
 Camera. Their UI templates, artwork and source code were not copied into the
-FaceLighting menu implementation. Reference links are recorded in
+Face Lighting SKSE menu implementation. Reference links are recorded in
 [the selected NPC documentation](docs/selected-npc-lighting.md).

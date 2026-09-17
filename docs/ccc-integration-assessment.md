@@ -38,20 +38,20 @@ https://github.com/fatalCMD/ccc
 
 ## 建议第一阶段协议
 
-FaceLighting 导出带版本号的函数表查询入口（例如 RequestPluginAPI）。CCC 在插件加载完成后可选获取，未安装或版本不匹配时正常退回无打光，不形成硬依赖。边界使用固定宽度字段和带 size/version 的结构，避免跨 DLL 传递 STL 容器。
+Face Lighting SKSE 导出带版本号的函数表查询入口（例如 RequestPluginAPI）。CCC 在插件加载完成后可选获取，未安装或版本不匹配时正常退回无打光，不形成硬依赖。边界使用固定宽度字段和带 size/version 的结构，避免跨 DLL 传递 STL 容器。
 
 最小能力：
 
 1. BeginSession：取得本次镜头会话的请求 token。
 2. SetActorLight：指定玩家/目标 NPC；传入启用状态、可选参数覆盖。至少明确坐标空间：角色朝向、骨骼局部；相机空间可作为后续能力。
 3. SetSessionActive：暂停与恢复，例如交易界面、CCC 暂时释放镜头。
-4. EndSession：撤销该会话请求，恢复 FaceLighting 自己的设置和光源需求。
+4. EndSession：撤销该会话请求，恢复 Face Lighting SKSE 自己的设置和光源需求。
 
 镜头切换时 CCC 可改变目标或权重；第一版可先维持玩家与对话对象同时补光，降低频繁切灯和镜头过渡的协调成本。
 
 ## 必须处理的边界
 
-- FaceLighting 持有光源，CCC 只持有请求 token；不要直接暴露 NiPointLight 指针。
+- Face Lighting SKSE 持有光源，CCC 只持有请求 token；不要直接暴露 NiPointLight 指针。
 - 对象标识必须可验证，内部转换为 ActorHandle，卸载/死亡/读档后失效清理；不要长期保存裸 Actor 指针。
 - 请求复制后交由主线程执行；API 返回请求接收状态，不将异步接收等同于已创建光源。
 - 同一个 Actor 的默认对话面光与外部请求合并为一盏灯，明确临时覆盖优先级，避免叠加过曝。

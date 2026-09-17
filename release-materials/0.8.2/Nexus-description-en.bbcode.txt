@@ -1,4 +1,4 @@
-[center][size=6][b]FACE LIGHTING[/b][/size]
+[center][size=6][b]Face Lighting SKSE[/b][/size]
 [color=#C9AA72]Player & dialogue NPC lighting.[/color]
 
 Adjustable face lighting for you and the people you talk to.[/center]
@@ -54,7 +54,7 @@ Restart the game, select your language in General, and save. Missing text falls 
 Share only your language file with its folder structure. No recompilation required. Full instructions: [url=https://github.com/BlackMesa79/Face-Lighting-SKSE/blob/main/docs/LOCALIZATION.md]Translation guide on GitHub[/url].
 
 [size=4][color=#C9AA72][b]Open source & permissions[/b][/color][/size]
-[b]Copyright (C) 2026 BlackMesa79.[/b] FaceLighting is free software distributed under [b]GPL-3.0[/b]. Modification and redistribution are permitted under the terms of that license.
+[b]Copyright (C) 2026 BlackMesa79.[/b] Face Lighting SKSE is free software distributed under [b]GPL-3.0[/b]. Modification and redistribution are permitted under the terms of that license.
 
 [url=https://github.com/BlackMesa79/Face-Lighting-SKSE][b]View the source on GitHub[/b][/url]  |  [url=https://www.gnu.org/licenses/gpl-3.0.html]Read the full GPL-3.0 license[/url]
 
