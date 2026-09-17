@@ -1,0 +1,8 @@
+[size=4][color=#C9AA72][b]Open source & permissions[/b][/color][/size]
+[b]Copyright (C) 2026 BlackMesa79.[/b] FaceLighting is free software distributed under [b]GPL-3.0[/b]. Modification and redistribution are permitted under the terms of that license.
+
+[url=https://github.com/BlackMesa79/Face-Lighting-SKSE][b]View the source on GitHub[/b][/url]  |  [url=https://www.gnu.org/licenses/gpl-3.0.html]Read the full GPL-3.0 license[/url]
+
+The software is provided [b]without any warranty[/b], including implied warranties of merchantability or fitness for a particular purpose. Retain applicable copyright and license notices, and follow GPL-3.0 when distributing modified versions. Third-party components retain their respective notices.
+
+[size=2]The GitHub main branch contains ongoing development. Selected NPC lighting, the redesigned menu and other 1.0 work may not yet be available in the published download.[/size]

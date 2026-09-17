@@ -1,6 +1,6 @@
 # Third-party notices
 
-The root MIT license applies to original FaceLighting code. Third-party files
+Original FaceLighting code is distributed under GPL-3.0-only. Third-party files
 retain their own copyright and license notices; they are not relicensed by
 the root license.
 

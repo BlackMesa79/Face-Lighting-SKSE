@@ -108,7 +108,8 @@ matching `.skse` co-save when copying saves.
 
 ## License
 
-Original FaceLighting code is released under the [MIT License](LICENSE).
+Copyright (C) 2026 BlackMesa79. FaceLighting is released under [GPL-3.0](LICENSE.txt).
+Modification and redistribution are permitted under GPL-3.0. The software is provided without warranty; see [README.txt](README.txt) for the copyright and license notice.
 Vendored dependencies retain their respective licenses; see
 [Third-party notices](THIRD_PARTY_NOTICES.md).
 
