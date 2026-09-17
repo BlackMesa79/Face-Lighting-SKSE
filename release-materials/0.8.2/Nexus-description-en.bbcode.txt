@@ -51,7 +51,7 @@ Includes [b]English and Simplified Chinese[/b]. To create a translation, copy [b
 
 Restart the game, select your language in General, and save. Missing text falls back to English; sidebar names update after restarting. Your menu font must support the language.
 
-Share only your language file with its folder structure. No recompilation required. Full instructions: [b]docs/LOCALIZATION.md[/b] in the download.
+Share only your language file with its folder structure. No recompilation required. Full instructions: [url=https://github.com/BlackMesa79/Face-Lighting-SKSE/blob/main/docs/LOCALIZATION.md]Translation guide on GitHub[/url].
 
 [size=4][color=#C9AA72][b]Open source & permissions[/b][/color][/size]
 [b]Copyright (C) 2026 BlackMesa79.[/b] FaceLighting is free software distributed under [b]GPL-3.0[/b]. Modification and redistribution are permitted under the terms of that license.

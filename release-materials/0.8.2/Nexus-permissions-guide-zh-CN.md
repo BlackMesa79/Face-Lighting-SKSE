@@ -4,7 +4,7 @@
 2. 在模组编辑页的 Permissions and credits 中，将修改权限与上传／再分发权限设置为允许，条件为遵守 GPL-3.0，而不是每次必须单独获得作者许可。
 3. 与本模组代码相关的许可选项不要继续保留与 GPL 冲突的禁止修改、禁止再分发、禁止商业再分发或额外授权要求。第三方内容遵守各自许可。
 4. 如有 Author notes / 权限补充说明栏，可粘贴下方英文文字。
-5. 可用 FaceLighting-0.8.2-GPL.zip 替换当前下载：保持原 0.8.2 DLL 和配置不变，仅加入 LICENSE.txt、README.txt 和第三方声明。此文件尚未上传至 N 网。
+5. 可用 FaceLighting-0.8.2-GPL.zip 替换当前下载：保持原 0.8.2 DLL 和配置不变，只保留运行文件与 README.txt，后者包含版权、GPL 声明、GNU 官方完整许可链接、源码链接及必要的第三方许可原文。此文件尚未上传至 N 网。
 
 Copyright (C) 2026 BlackMesa79. FaceLighting is licensed under GPL-3.0. You may modify and redistribute it under the terms of that license; no separate permission from me is required for uses permitted by GPL-3.0. Preserve applicable notices and provide corresponding source as required by the license. Third-party components retain their own license terms. This software is provided without warranty.
 
