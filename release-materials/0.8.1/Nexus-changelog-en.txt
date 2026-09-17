@@ -1,0 +1,4 @@
+Version 0.8.1
+
+- Added optional head-bone rotation following, independently configurable for player and dialogue NPC lights. Disabled by default.
+- Added head-local position labels and updated English/Chinese translations for the new mode.

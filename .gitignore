@@ -1,0 +1,15 @@
+/build/
+/.xmake/
+/.idea/
+/.vs/
+*.user
+/.codex/
+/.agents/
+**/.claude/
+**/.factory/
+.env
+.env.*
+*.pdb
+*.obj
+*.ilk
+*.log

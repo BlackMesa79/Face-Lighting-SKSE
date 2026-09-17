@@ -1,0 +1,1 @@
+Adjustable face lighting for the player and dialogue NPCs, with a player hotkey, smooth dialogue fades, color temperature controls, and Community Shaders support. Configure everything in-game with live previews.

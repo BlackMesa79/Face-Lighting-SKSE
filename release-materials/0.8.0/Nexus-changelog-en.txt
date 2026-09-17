@@ -1,0 +1,13 @@
+Version 0.8.0
+
+- Added optional manual radius control for inverse-square lighting, independently for player and dialogue lights. Automatic range remains the default.
+- Added automatic player light hiding while sneaking, enabled by default. Leaving sneak restores visibility according to the saved enabled state.
+- Added optional Shift, Ctrl, or Alt modifiers for the player keyboard shortcut. The default remains L.
+- Added independent gamepad shortcuts with optional modifiers, such as LB + D-pad Up. Gamepad bindings are disabled by default. Disconnecting and reconnecting the controller has passed in-game testing.
+- Moved interface translations into separate UTF-8 language files. Includes English and Simplified Chinese.
+- Added support for community translations without recompiling the plugin. Installed languages appear in the menu; automatic Windows UI language detection is preserved, and missing translations fall back to English.
+- Included a translation guide in docs/LOCALIZATION.md. External localization has passed in-game testing with a custom Traditional Chinese file.
+
+Upgrade: keep your existing FaceLighting.ini and install the included Languages folder. New settings use their defaults.
+Note: shortcuts do not block original game actions. Sneak hiding affects only the player light; dialogue lights can still affect sneak detection.
+

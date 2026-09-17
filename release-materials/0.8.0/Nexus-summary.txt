@@ -1,0 +1,1 @@
+Adjustable player and dialogue NPC face lighting with live previews, color temperature, Community Shaders support, keyboard and controller shortcuts, and automatic player light hiding while sneaking.

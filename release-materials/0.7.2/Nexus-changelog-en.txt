@@ -1,0 +1,5 @@
+Added a CS integration mode selector: Automatic, Manual enable, or Disabled.
+Manual enable allows unrecognized CS builds to use the lighting integration while still requiring CommunityShaders.dll to be loaded.
+Added version and metadata diagnostics to help identify detection failures.
+Tested with Jiaye build 0516 (1.6.0) and Jiaye build 0816 using Manual enable. Both passed user testing.
+Keep the global Linear Lighting confirmation matched to your actual CS setting.

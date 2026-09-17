@@ -1,0 +1,65 @@
+[center][size=6][b]FACE LIGHTING[/b][/size]
+[color=#C9AA72]Player & dialogue NPC lighting.[/color]
+
+Adjustable face lighting for you and the people you talk to.[/center]
+
+Add a gentle fill light to the player's face or your current dialogue partner. Tune each light separately, preview changes in-game, and keep the look that suits your setup.
+
+[size=4][color=#C9AA72][b]Two lights. Your settings.[/b][/color][/size]
+[list]
+[*][b]Player face light[/b] — Off by default. Visible in third person, with automatic hiding while sneaking enabled by default.
+[*][b]Dialogue face light[/b] — Automatically lights the current dialogue partner in first or third person. Optional fade-in and fade-out, with adjustable duration.
+[*][b]Independent controls[/b] — Adjust intensity, position, and color temperature from [b]2000–10000 K[/b]. Adjust radius in regular mode. CS inverse-square mode offers [b]Automatic[/b] range (default) or [b]Manual[/b] radius, independently of intensity.
+[*][b]Live configuration[/b] — Three pages: General, Player face light, and NPC face light. English and Simplified Chinese, with automatic Windows UI language detection and support for additional language files.
+[/list]
+
+[size=4][color=#C9AA72][b]Keyboard & controller[/b][/color][/size]
+Toggle player lighting with [b]L[/b], or choose your own shortcut with an optional [b]Shift, Ctrl, or Alt[/b] modifier.
+
+Gamepad bindings are independent and [b]disabled by default[/b]. Choose a button and an optional modifier on the Player page — for example, hold [b]LB[/b] and press [b]D-pad Up[/b]. Buttons use Xbox-style labels, including LT/RT. Save your binding before closing the menu.
+
+Shortcuts do not block the buttons' original game actions. Steam Input mapped to keyboard keys uses the keyboard shortcut instead.
+
+[size=4][color=#C9AA72][b]Get started[/b][/color][/size]
+Install with your mod manager and launch through SKSE. No ESP or Papyrus scripts are included.
+
+[b]Required[/b]
+[url=https://skse.silverlock.org/]SKSE64[/url] and [url=https://www.nexusmods.com/skyrimspecialedition/mods/32444]Address Library[/url], matching your game version.
+
+[b]For the in-game menu[/b]
+[url=https://www.nexusmods.com/skyrimspecialedition/mods/120352]SKSE Menu Framework[/url]. You can also edit [b]Data/SKSE/Plugins/FaceLighting.ini[/b] and restart.
+
+Open [b]FaceLighting[/b] in the framework. Changes preview immediately and remain while switching pages. [b]Save all settings[/b] keeps them; closing the menu discards unsaved edits. Keep your existing INI when upgrading.
+
+[size=4][color=#C9AA72][b]Community Shaders[/b][/color][/size]
+CS is optional. Inverse-square falloff uses automatic linear-light flags and calibrated intensity. Choose [b]Automatic[/b], [b]Manual enable[/b], or [b]Disabled[/b] integration in General. Manual enable lets unrecognized builds use the integration while still requiring CS to be loaded. Regular lighting remains available without CS.
+
+[b]One setup step:[/b] in General, match [b]“My CS global Linear Lighting is enabled”[/b] to your actual CS setting. This selects the face lights' color handling; it does not turn on CS. Update it whenever you change the global CS option.
+
+[size=4][color=#C9AA72][b]Compatibility[/b][/color][/size]
+[b]Skyrim 1.5.97 has passed in-game testing.[/b] The plugin is built for SE/AE; use dependencies matching your runtime. VR is not supported.
+
+[b]Jiaye builds 0516 and 0816[/b] have passed user testing; 0816 used Manual enable. Other experimental builds may differ. ENB is not yet validated.
+
+[b]Face lights can affect sneak detection.[/b] By default, sneaking temporarily hides the player light without changing its enabled setting. Dialogue lighting is unaffected by this option and may still contribute to detection.
+
+Lights are shadowless and can also illuminate nearby objects. Actors need a standard head node. Dialogue detection uses Skyrim's standard dialogue menu and speaker; replacement dialogue systems may need separate support. Persistent lighting for manually selected NPCs is not included in this release.
+
+[size=4][color=#C9AA72][b]Translations[/b][/color][/size]
+Includes [b]English and Simplified Chinese[/b]. To create a translation, copy [b]SKSE/Plugins/FaceLighting/Languages/en.ini[/b] to a language code such as [b]fr.ini[/b]. Save as UTF-8, set [b]Name[/b] under [b][Language][/b], and translate only the values under [b][Strings][/b], keeping keys unchanged.
+
+Restart the game, select your language in General, and save. Missing text falls back to English; sidebar names update after restarting. Your menu font must support the language.
+
+Share only your language file with its folder structure. No recompilation required. Full instructions: [b]docs/LOCALIZATION.md[/b] in the download.
+
+[size=4][color=#C9AA72][b]Feedback & credits[/b][/color][/size]
+When reporting an issue, include your game/SKSE version, CS build if used, reproduction steps, and [b]FaceLighting.log[/b] with Debug logging enabled. Add a crash log for crashes.
+
+Thanks to the SKSE, CommonLib, Address Library, and SKSE Menu Framework contributors. Color-temperature approximation is based on [url=https://tannerhelland.com/2012/09/18/convert-temperature-rgb-algorithm-code.html]Tanner Helland's work[/url].
+
+[size=2]Developed with AI assistance and refined through hands-on testing. The cover is AI-generated promotional artwork, not an in-game screenshot.[/size]
+
+
+
+
+

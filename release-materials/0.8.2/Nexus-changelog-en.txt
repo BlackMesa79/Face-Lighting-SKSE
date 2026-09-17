@@ -1,0 +1,4 @@
+Version 0.8.2
+- Expanded keyboard bindings with F1–F12, number keys, navigation keys, numpad keys and more.
+- Player face lighting now automatically turns on when entering dialogue by default, without re-enabling an already active light.
+- Added an option to turn off player face lighting when dialogue ends (disabled by default).
