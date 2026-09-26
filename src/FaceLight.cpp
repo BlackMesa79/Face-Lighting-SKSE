@@ -16,19 +16,29 @@
 #include "LightInstance.h"
 #include "NpcLightManager.h"
 #include "SelectedNPCs.h"
+#include "ActorRuntime.h"
+#include "Followers.h"
+#include "LightProbe.h"
+#include "LightExclusionProbe.h"
+#include "ConfigMenu.h"
 
 namespace {
     struct State {
         LightInstance playerLight;
+        LightTransition playerFade;
         PlayerDialoguePolicy playerDialogue;
-        NpcLightManager<RE::ActorHandle, Settings::Values, LightInstance> npcLights{SelectedNPCs::limit + 2};
+        NpcLightManager<RE::ActorHandle, Settings::Values, LightInstance> npcLights{SelectedNPCs::limit + Followers::lightLimit + 2};
         std::atomic<bool> gameActive = false, loading = false, taskPending = false, resetRequested = false;
         std::chrono::steady_clock::time_point lastUpdate{};
 
         void Clear() {
             playerLight.Clear();
+            playerFade = {};
+            LightExclusionProbe::Reset();
             playerDialogue.Reset();
             npcLights.Clear();
+            Followers::Reset();
+            LightProbe::Reset();
             lastUpdate = {};
         }
 
@@ -51,9 +61,23 @@ namespace {
                 std::chrono::duration<float>(now - lastUpdate).count();
             lastUpdate = now;
             const auto camera = RE::PlayerCamera::GetSingleton();
-            if (camera && !camera->IsInFirstPerson() && !(settings.hideWhileSneaking && player->IsSneaking()))
-                playerLight.Update(player, settings);
-            else playerLight.Clear();
+            LightExclusionProbe::Update(settings.exclusionDiagnostics || settings.ambientMode == 3,
+                !ConfigMenu::IsOpen() && !ui->GameIsPaused() && !ui->IsMenuOpen(RE::Console::MENU_NAME), settings.exclusionDiagnostics);
+            const bool ambientAllows = LightProbe::Update(player, settings, playerLight.rendererLight.get() != nullptr,
+                npcLights.Size(), playerLight.rendererLight ? playerFade.value : 0.0f);
+            const bool viewAllowed = ActorRuntime::SafeForLight(player) &&
+                !ActorRuntime::SneakHidden(player, settings.hideWhileSneaking) &&
+                camera && (!camera->IsInFirstPerson() || settings.firstPersonLight);
+            if (viewAllowed) {
+                const bool wanted = settings.enabled && ambientAllows && settings.intensity > 0 &&
+                    !(settings.hideWhileSneaking && player->IsSneaking());
+                playerFade.Update(wanted, settings.playerTransition, settings.playerDuration,
+                    ui->GameIsPaused() ? 0.0f : std::clamp(delta, 0.0f, 0.1f));
+                auto renderSettings = settings;
+                // Manual off requests fade-out; the instance must stay enabled until opacity reaches zero.
+                renderSettings.enabled = true;
+                playerLight.Update(player, renderSettings, playerFade.value, camera->IsInFirstPerson());
+            } else { playerLight.Clear(); playerFade = {}; }
 
             RE::ActorHandle target;
             const auto topics = RE::MenuTopicManager::GetSingleton();
@@ -83,6 +107,11 @@ namespace {
             const auto& d = settings.dialogue;
             const auto lightSettings = convert(d);
             npcLights.BeginFrame();
+            const auto followerSettings = convert(settings.follower);
+            npcLights.RefreshSource(NpcLightSource::Follower, followerSettings, settings.follower.transition, settings.follower.duration);
+            for (const auto& actor : Followers::Update())
+                if (settings.follower.enabled && settings.follower.intensity > 0)
+                    npcLights.Submit(actor, NpcLightSource::Follower, followerSettings, settings.follower.transition, settings.follower.duration);
             const auto selectedSettings = convert(settings.selected);
             npcLights.RefreshSource(NpcLightSource::Selected, selectedSettings, settings.selected.transition, settings.selected.duration);
             for (const auto& actor : SelectedNPCs::Update())
@@ -90,10 +119,31 @@ namespace {
                     npcLights.Submit(actor, NpcLightSource::Selected, selectedSettings, settings.selected.transition, settings.selected.duration);
             npcLights.RefreshSource(NpcLightSource::Dialogue, lightSettings, d.transition, d.duration);
             if (target) npcLights.Submit(target, NpcLightSource::Dialogue, lightSettings, d.transition, d.duration);
-            npcLights.Update(delta, [](const RE::ActorHandle& handle) {
+            // Four is our conservative secondary-light budget, not an engine limit.
+            // Protect the player's surrounding geometry as well as their face.
+            npcLights.Protect(4, [&](const RE::ActorHandle& handle, const Settings::Values& values) {
+                const auto actor = handle.get();
+                if (!actor || !ActorRuntime::Eligible(actor.get())) return false;
+                if (!playerLight.rendererLight) return true;
+                const auto extent = [](const Settings::Values& v) {
+                    if (CSLighting::Available(v.csMode) && v.csInverseSquare)
+                        return CSLighting::InverseRange(CSLighting::InverseFade(v.intensity), v.manualRange, v.inverseRadius).radius;
+                    return v.radius;
+                };
+                const auto offset = [](const Settings::Values& v) {
+                    return std::sqrt(v.offsetX * v.offsetX + v.offsetY * v.offsetY + v.offsetZ * v.offsetZ);
+                };
+                // A wider restoration boundary prevents repeated on/off at the edge.
+                const float separation = extent(settings) + extent(values) + offset(settings) + offset(values) +
+                    256.0f + (npcLights.Contains(handle) ? 0.0f : 64.0f);
+                return actor->GetPosition().GetSquaredDistance(player->GetPosition()) > separation * separation;
+            });
+            npcLights.Update(delta, [&](const RE::ActorHandle& handle) {
                 const auto actor = handle.get();
                 const auto cell = actor ? actor->GetParentCell() : nullptr;
-                return actor && !actor->IsPlayerRef() && !actor->IsDeleted() && !actor->IsDisabled() && !actor->IsDead() && actor->Get3D(false) && cell && cell->IsAttached();
+                return ActorRuntime::Eligible(actor.get()) &&
+                    !ActorRuntime::SneakHidden(actor.get(), settings.hideWhileSneaking) &&
+                    actor->Get3D(false) && cell && cell->IsAttached();
             }, [](LightInstance& light, const RE::ActorHandle& handle, const Settings::Values& values, float opacity) {
                 const auto actor = handle.get();
                 light.Update(actor.get(), values, opacity);
@@ -136,6 +186,7 @@ void FaceLight::Install() {
     static bool installed = false;
     if (installed) return;
     CSLighting::Detect();
+    LightExclusionProbe::Install();
     // Actor::Update is virtual slot 0xAD on SE/AE; preserve the previous hook.
     REL::Relocation<std::uintptr_t> vtable{RE::VTABLE_PlayerCharacter[0]};
     originalUpdate = vtable.write_vfunc(0xAD, UpdatePlayer);
@@ -164,5 +215,3 @@ void FaceLight::RequestUpdate() {
         GetState().Update();
     });
 }
-
-

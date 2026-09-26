@@ -7,47 +7,45 @@ Adjustable face lighting for Skyrim Special Edition and Anniversary Edition,
 with SKSE Menu Framework settings and optional Community Shaders integration.
 No ESP or Papyrus scripts are required.
 
-## Development status
+## Version 0.9
 
-This repository contains the **current development source**, including work
-following the published 0.8.2 release. The DLL version remains 0.8.2 during
-this development cycle; it does not imply that the source matches the
-published 0.8.2 archive.
-
-- Player and dialogue NPC lighting have passed user testing.
-- Unified NPC light management has passed user testing.
-- Selected NPC lighting and the redesigned menu are implemented and awaiting
-  in-game validation.
-- Automatic follower and nearby-NPC lighting are planned, not implemented.
-- Skyrim **1.7.x is not supported by this build**. Compatibility work and
-  external testing are planned for a future release.
+0.9 adds selected NPC lists, automatic follower lighting, optional first-person player lighting, automatic lighting in dark environments, and a redesigned configuration menu.
 
 ## Features
 
-- Independent player and dialogue NPC lighting, with radius, intensity,
-  position and 2000–10000 K color-temperature controls.
-- Optional head-bone orientation tracking and dialogue fades.
-- Keyboard shortcuts (including function keys), modifier keys and controller
-  bindings for player lighting.
-- Optional player-light activation on dialogue and hiding while sneaking.
-- Community Shaders inverse-square falloff, linear lighting and automatic or
-  manual range, with automatic detection and a manual override.
-- English and Simplified Chinese language files; automatic Windows UI language
-  detection and support for community translations.
-- **In development:** selected NPC list with crosshair/console selection,
-  individual enable/remove controls and independent shared lighting settings.
-  The list is stored per save in the SKSE co-save, with a 32-NPC limit.
+- Separate settings for player, dialogue NPC, selected NPC and follower lighting: intensity, position, radius/range, head rotation and 2000–10000 K color temperature.
+- Aim at an NPC and press **Shift+L** to add and enable its light; press again to toggle. Crosshair and console targets can also be added from the menu. Up to 32 selected NPCs per save.
+- Automatically light recruited player teammates, with individual follower switches. Up to 32 loaded followers are lit, nearest first. Custom followers need the player-teammate flag; use the selected list otherwise. Ashe – Crystal Heart was recognized in user testing; this is not a guarantee for all custom followers.
+- A single light per NPC, with dialogue taking priority over selected and follower settings.
+- Optional first-person player light; smooth player transitions default to 0.2 seconds.
+- Optional dark-environment player control: fixed compensation or live exclusion of this mod's player/NPC lights. Live exclusion requires the verified **Skyrim 1.6.1170 code layout**, saving settings and restarting. It is not available on 1.5.97. Unknown or stale readings pause decisions; there is no automatic fallback to compensation.
+- Dark control uses measured lighting, not time of day. Default thresholds: below 30 on, above 50 off, sustained for 2 seconds; transitions and their settling period temporarily suspend decisions.
+- Player **L** hotkey, optional keyboard modifiers and independent controller bindings.
+- Sneak hiding immediately suppresses player and teammate lights, including selected/dialogue sources on teammates, ahead of automatic control. Other NPCs remain independent.
+- Roster notifications; English and Simplified Chinese; live preview, save and discard.
+- Optional Community Shaders integration with inverse-square falloff and linear-light handling.
 
-These are native point lights: they can illuminate nearby objects and affect
-sneak detection. Player sneak hiding does not hide NPC lights.
+These are shadowless point lights, not skin-only lighting. They can illuminate nearby objects and affect sneak detection. Ambient exclusion changes this mod's automatic decision input, not the game's original light or stealth values.
 
-## Requirements
+## Requirements and validation
 
-- Windows x64, Skyrim SE/AE with matching SKSE and Address Library.
-- SKSE Menu Framework for the in-game settings menu.
-- Community Shaders is optional. ENB integration has not been validated.
-- VR is not supported. Skyrim 1.5.97 has passed user testing; do not infer
-  compatibility with every runtime from the SE/AE build options.
+Windows x64, matching SKSE64 and Address Library. SKSE Menu Framework is needed for the in-game menu. Community Shaders is optional; ENB is not validated. VR and Skyrim 1.7.x are not supported.
+
+Core lighting was previously tested on 1.5.97; the 0.9 feature testing was performed on 1.6.1170. Do not infer that every new feature has been retested on every SE/AE runtime. Live exclusion is restricted to the verified 1.6.1170 layout and may be unavailable if another plugin changes that code.
+
+User testing covered selected NPCs across characters and saves, followers, dark-environment control, and sneak/death safeguards. Player decapitation could not be reproduced and remains unverified. Missing head nodes or invalid actor/model state cause light cleanup; these guards cannot guarantee that external mods or engine death sequences never crash.
+
+## Installation and upgrade
+
+Install the archive with your mod manager and launch through SKSE. No ESP or Papyrus scripts. Preserve your existing INI; if using Mod Organizer, check its overwrite folder for the effective settings. New options use defaults when absent.
+
+Starting with 0.9.1, installation archives do not include an initial `FaceLighting.ini`. Missing settings use built-in defaults; saving settings in the menu creates the file. The repository's INI is a reference only.
+
+Version 0.9.1 adds conservative light priority protection: dialogue temporarily suspends other NPC lights; outside dialogue, at most four secondary lights remain, with selected NPCs ahead of followers. Nearby secondary lights also yield while the player light exists. Suspended lights recover automatically without changing saved preferences. This reduces competition from this mod, but cannot guarantee visibility against engine or external lighting limits.
+
+The release defaults leave the player light initially off, first-person lighting off, automatic darkness control off and diagnostics off. Dialogue activation, NPC lighting groups and sneak hiding are enabled. To test automatic control, enable the player master switch and choose a mode in General; live exclusion needs a restart after saving settings.
+
+Settings are stored in INI. Selected NPC lists and per-follower preferences are stored in the SKSE co-save when saving the game; preserve the matching `.skse` file with your saves.
 
 ## Build
 
@@ -84,7 +82,8 @@ FaceLighting.ini and custom translation files. To disable it, configure
 xmake build -a
 $tests = @('SettingsTests', 'LightPlacementTests', 'CSLightingTests',
     'LocalizationTests', 'PlayerDialogueTests', 'NpcLightManagerTests',
-    'SelectedNPCRecordTests')
+    'SelectedNPCRecordTests', 'ActorRuntimeTests', 'FollowerRosterTests',
+    'AmbientPolicyTests', 'LightCallScanTests', 'PlayerTransitionTests', 'ExclusionTotalsTests')
 foreach ($test in $tests) {
     & "./build/windows/x64/releasedbg/$test.exe"
     if ($LASTEXITCODE -ne 0) { throw "$test failed" }
@@ -118,13 +117,20 @@ Vendored dependencies retain their respective licenses; see
 
 ## 中文说明
 
-这是面部光照模组的当前开发源码，包含正式 0.8.2 发布后的开发内容。
-统一 NPC 光源管理已通过用户测试；指定 NPC 面光和新版菜单等待游戏内验证。
-随从自动面光、范围 NPC 面光和 Skyrim 1.7.x 支持尚未完成。
+0.9 正式发布内容包括：指定 NPC 快捷键名单、自动随从面光与逐人开关、可选第一人称面光、暗环境自动控制、0.2 秒玩家过渡、新版配置菜单及名单通知。潜行隐藏优先于自动开灯，并同步隐藏队友所有来源的面光。玩家和 NPC 共用死亡清理保护；玩家斩首场景尚未复现验证。
 
-构建需要 Windows x64、Visual Studio 2022 C++ 工具链和 Xmake 3.0 以上。
-构建命令见上文。默认不复制文件到游戏目录，可通过本地 `deploy_dir` 配置开启自动部署。
+实时排除面光的自动模式仅支持已核验的 Skyrim 1.6.1170 代码布局，首次启用需保存设置并重启。固定补偿旧方案保留。发布包默认关闭自动控制和诊断，不包含作者个人测试设置。范围内所有 NPC 自动照明、VR 与 Skyrim 1.7.x 支持不在此版本中。
 
-指定 NPC 名单支持准星／控制台添加，按存档保存，最多 32 名；名单操作需保存游戏
-才能持久化，菜单中的保存按钮只保存光照参数。翻译文件位于 `languages/`，
-正式附带英文和简体中文；测试目录中的其他语言样例不属于发布语言包。
+升级保留现有 INI 和随存档的 `.skse` 文件。名单操作需保存游戏；菜单“保存所有设置”只保存参数。详情见发布包内 `docs/0.9-user-guide.md`。
+
+
+CS integration uses a single on/off switch and requires a loaded CommunityShaders.dll; no version whitelist is used. Legacy CSMode=0 (automatic) and 1 (manual) migrate to enabled (1); 2 stays disabled. DLL and ISL version information remains visible. Direct CS testing covers Jiaye build 0516; other builds have user reports, not individual certification. Release menus omit diagnostic checkboxes, sample dumps, MARK buttons and observation-only ambient mode. INI diagnostic keys remain available for requested troubleshooting; ordinary automatic control does not emit per-second diagnostic dumps.
+
+CS 适配改为开关，不再按版本限制；旧自动和手动开启迁移为开启，旧关闭保持关闭。界面保留 DLL/ISL 版本信息。正式菜单移除调试数据、记录和标记按钮，仅在需要排查时手动通过 INI 启用诊断。关闭诊断不影响实时排除自动开灯。
+
+
+## Public archive packaging
+
+Run `python scripts/package-release.py` after building the release DLL. The public installation ZIP contains only runtime files under SKSE and one root `readme.txt`. Installation notes, full GPL text and third-party licenses are consolidated there. Do not zip the general build/package staging directory for public distribution: it may contain development documentation. Source archives, changelogs, covers and publishing materials are supplied separately.
+
+发布约定：运行必需文件之外，安装压缩包只附带一个 readme.txt，合并使用说明、GPL 全文和第三方许可；不要另附 docs、licenses、更新日志或宣传素材。正式打包使用 scripts/package-release.py，不直接压缩可能含历史文件的 build/package 暂存目录。

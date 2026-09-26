@@ -30,5 +30,6 @@ namespace Hotkeys {
         return index >= 0 && index < static_cast<int>(codes.size()) ? codes[index] : customCode;
     }
     void Install();
+    bool CanToggle();
 }
 

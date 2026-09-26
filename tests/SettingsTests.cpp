@@ -23,6 +23,12 @@ int main() {
         std::filesystem::current_path(testRoot);
         const Settings::Values defaults;
         Settings::Values requested;
+        auto legacyCS = defaults;
+        legacyCS.csMode = 0;
+        Check(Settings::Normalize(legacyCS).csMode == 1, "legacyCS CS auto migrates to enabled");
+        legacyCS.csMode = 2;
+        Check(Settings::Normalize(legacyCS).csMode == 2, "legacyCS CS disabled remains disabled");
+
         requested.enabled = false;
         requested.enablePlayerOnDialogue = false;
         requested.disablePlayerAfterDialogue = true;
@@ -30,6 +36,8 @@ int main() {
         requested.dialogue.followHeadRotation = true;
         requested.language = "en";
         requested.hotkeyModifier = 1;
+        requested.selectedHotkey = 60;
+        requested.selectedHotkeyModifier = 2;
         requested.gamepadKey = 266;
         requested.gamepadModifier = 274;
         requested.hideWhileSneaking = false;
@@ -56,6 +64,20 @@ int main() {
         requested.selected = requested.dialogue;
         requested.selected.radius = 180.0f;
         requested.selected.temperature = 4500.0f;
+        requested.follower = requested.dialogue;
+        requested.follower.radius = 210.0f;
+        requested.follower.temperature = 5100.0f;
+        requested.firstPersonLight = true;
+        requested.lightDiagnostics = true;
+        requested.exclusionDiagnostics = true;
+        requested.playerTransition = false;
+        requested.playerDuration = 1.25f;
+        requested.ambientMode = 3;
+        requested.ambientCompensation = 83.5f;
+        requested.ambientOnThreshold = 28;
+        requested.ambientOffThreshold = 55;
+        requested.ambientDelay = 3;
+        requested.rosterNotifications = false;
         requested.debugLogging = true;
         requested.csInverseSquare = true;
         requested.csLinear = true;
@@ -99,6 +121,25 @@ int main() {
         auto legacy = defaults;
         legacy.debugLogging = true;
         Check(Settings::Get() == legacy, "0.1 configuration gains lighting defaults");
+        Check(Settings::Get().follower.enabled && !Settings::Get().firstPersonLight,
+            "legacy settings enable followers but keep first-person opt-in");
+        auto invalidFollower = defaults;
+        invalidFollower.follower.intensity = std::numeric_limits<float>::quiet_NaN();
+        invalidFollower.follower.radius = -10;
+        invalidFollower.follower.duration = 20;
+        const auto cleanFollower = Settings::Normalize(invalidFollower);
+        Check(cleanFollower.follower.intensity == defaults.follower.intensity &&
+            cleanFollower.follower.radius == Settings::minRadius && cleanFollower.follower.duration == 3,
+            "follower lighting parameters are normalized");
+        auto invalidKeys = defaults;
+        invalidKeys.selectedHotkey = 256;
+        invalidKeys.selectedHotkeyModifier = 4;
+        Check(Settings::Normalize(invalidKeys) == defaults, "invalid NPC shortcut restores defaults");
+        invalidKeys.selectedHotkey = 42;
+        invalidKeys.selectedHotkeyModifier = 1;
+        Check(Settings::Normalize(invalidKeys) == defaults, "NPC main key cannot equal modifier");
+        invalidKeys.selectedHotkey = 0;
+        Check(Settings::Normalize(invalidKeys).selectedHotkey == 0, "NPC shortcut can be disabled");
         Check(Settings::Get().enablePlayerOnDialogue, "missing dialogue entry flag defaults on");
         Write("[General]\nEnablePlayerOnDialogue=0\n");
         Settings::Load();
@@ -136,6 +177,18 @@ int main() {
             Settings::GetActive().intensity == 0, "preview input sanitized");
 
         // Guaranteed write failure: the INI parent is a regular file.
+        auto ambientInvalid = defaults;
+        ambientInvalid.playerDuration = std::numeric_limits<float>::infinity();
+        ambientInvalid.ambientMode = 9;
+        ambientInvalid.ambientCompensation = std::numeric_limits<float>::quiet_NaN();
+        ambientInvalid.ambientOnThreshold = 900;
+        ambientInvalid.ambientOffThreshold = 10;
+        ambientInvalid.ambientDelay = -2;
+        const auto ambientClean = Settings::Normalize(ambientInvalid);
+        Check(ambientClean.playerDuration == defaults.playerDuration, "invalid player transition duration defaults");
+        Check(ambientClean.ambientMode == 0 && ambientClean.ambientCompensation == 80 &&
+            ambientClean.ambientOnThreshold == 900 && ambientClean.ambientOffThreshold == 901 &&
+            ambientClean.ambientDelay == 0.5f, "ambient thresholds ordered and malformed values sanitized");
         std::filesystem::create_directories(testRoot / "blocked/Data/SKSE");
         { std::ofstream file(testRoot / "blocked/Data/SKSE/Plugins"); file << "blocked"; }
         std::filesystem::current_path(testRoot / "blocked");

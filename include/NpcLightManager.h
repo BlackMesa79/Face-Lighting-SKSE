@@ -64,6 +64,46 @@ public:
         requests.clear();
     }
     std::size_t Size() const { return entries.size(); }
+    bool Contains(const Key& actor) const {
+        return std::any_of(entries.begin(), entries.end(), [&](const auto& e) { return e && e->request.actor == actor; });
+    }
+
+    // Hard release denied lights before rendering protected actors. A fade-out
+    // would still consume renderer resources. Preferences are never changed.
+    template <class Allow>
+    void Protect(std::size_t secondaryLimit, Allow allow) {
+        std::stable_sort(requests.begin(), requests.end(), [](const auto& a, const auto& b) { return a.source > b.source; });
+        const bool dialogue = std::any_of(requests.begin(), requests.end(), [](const auto& r) { return r.source == NpcLightSource::Dialogue; });
+        std::vector<Key> accepted;
+        std::vector<Key> denied;
+        std::size_t secondary = 0;
+        for (const auto& request : requests) {
+            if (std::find(accepted.begin(), accepted.end(), request.actor) != accepted.end() ||
+                std::find(denied.begin(), denied.end(), request.actor) != denied.end()) continue;
+            if (request.source == NpcLightSource::Dialogue ||
+                (!dialogue && secondary < secondaryLimit && allow(request.actor, request.parameters))) {
+                accepted.push_back(request.actor);
+                if (request.source != NpcLightSource::Dialogue) ++secondary;
+            } else denied.push_back(request.actor);
+        }
+        std::erase_if(requests, [&](const auto& r) { return std::find(denied.begin(), denied.end(), r.actor) != denied.end(); });
+        // Include outgoing lights in the budget, and release an old dialogue
+        // target immediately when a new protected target takes over.
+        std::erase_if(entries, [&](auto& entry) {
+            const auto& r = entry->request;
+            bool drop = std::find(denied.begin(), denied.end(), r.actor) != denied.end();
+            if (!Winner(r.actor)) {
+                if (dialogue || !allow(r.actor, r.parameters) || secondary >= secondaryLimit) drop = true;
+                else if (!drop) ++secondary;
+            }
+            if (drop) {
+                if constexpr (requires { entry->light.Clear("priority protection"); })
+                    entry->light.Clear("priority protection");
+                else entry->light.Clear();
+            }
+            return drop;
+        });
+    }
 
     template <class Valid, class Render>
     void Update(float delta, Valid valid, Render render) {
@@ -84,9 +124,14 @@ public:
             }
             if (capacity == 0) continue;
             if (entries.size() >= capacity) {
-                // Prefer dropping the oldest outgoing light; never evict an actively requested actor.
+                // Prefer outgoing lights, then preempt a lower-priority active actor.
                 auto outgoing = std::find_if(entries.begin(), entries.end(), [&](const auto& entry) { return !Winner(entry->request.actor); });
-                if (outgoing == entries.end()) continue;
+                if (outgoing == entries.end()) {
+                    outgoing = std::min_element(entries.begin(), entries.end(), [&](const auto& a, const auto& b) {
+                        return Winner(a->request.actor)->source < Winner(b->request.actor)->source;
+                    });
+                    if (outgoing == entries.end() || Winner((*outgoing)->request.actor)->source >= request.source) continue;
+                }
                 (*outgoing)->light.Clear();
                 entries.erase(outgoing);
             }

@@ -48,9 +48,9 @@ int main() {
         const auto sentinel = CSLighting::InverseRange(sentinelFade, true, 100);
         Check(sentinel.cutoff != 1 && std::abs(sentinel.radius - 100) < 0.01f, "cutoff one sentinel avoided");
         for (bool loaded : {false, true}) for (bool recognized : {false, true}) {
-            Check(CSLighting::ModeEnabled(0, loaded, recognized) == (loaded && recognized), "automatic requires loaded recognized CS");
-            Check(CSLighting::ModeEnabled(1, loaded, recognized) == loaded, "manual bypasses recognition only");
-            Check(!CSLighting::ModeEnabled(2, loaded, recognized), "disabled never writes CS protocol");
+            Check(CSLighting::ModeEnabled(0, loaded) == loaded, "legacy auto enables any loaded CS");
+            Check(CSLighting::ModeEnabled(1, loaded) == loaded, "manual bypasses recognition only");
+            Check(!CSLighting::ModeEnabled(2, loaded), "disabled never writes CS protocol");
         }
         static_assert(Hotkeys::Index(59) == 27);
         static_assert(Hotkeys::FromIndex(0, 59) == 0);
@@ -99,9 +99,6 @@ int main() {
         Check(fade.value == 1, "disabled transition switches on immediately");
         fade.Update(false, true, 0, 0);
         Check(fade.value == 0, "zero duration switches off immediately");
-        Check(CSLighting::SupportsVersion(1, 6, 0), "1.6 source family");
-        Check(CSLighting::SupportsVersion(1, 8, 4), "public 1.8.4 source family");
-        Check(!CSLighting::SupportsVersion(1, 9, 0) && !CSLighting::SupportsVersion(2, 6, 0), "unknown versions not accepted");
         const std::uint32_t external = (1u << 9) | (1u << 24) | 1u;
         auto bits = CSLighting::Flags(external, true, true);
         Check((bits & external) == external, "preserve CS disabled/culling/portal bits");

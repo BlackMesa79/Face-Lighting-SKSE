@@ -1,0 +1,3 @@
+Original vector redraw in the established charcoal/ivory/gold layout. Solid background, no noise or raster texture. Text uses Segoe UI; PNG exported at 2560x1440 and 1280x720. SVG remains editable. Promotional artwork, not a game screenshot.
+
+Revision v2: head illustration redrawn with vector Bezier paths following the original cover silhouette and hair. New typography and solid background preserved. Use FaceLighting-cover-v2.png (2560x1440); editable source FaceLighting-cover-v2.svg. Generated compositing trials were not selected because they retained texture.

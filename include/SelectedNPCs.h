@@ -12,6 +12,7 @@ namespace SelectedNPCs {
     void CaptureTargets();
     View Snapshot();
     void AddTarget(bool console);
+    void ToggleCrosshairTarget();
     void Remove(RE::FormID id);
     void SetEnabled(RE::FormID id, bool enabled);
     // Called on the game thread; never loads actors or scans the world.

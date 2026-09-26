@@ -3,12 +3,16 @@
 #include <map>
 #include <stdexcept>
 #include <set>
+#include <source_location>
+#include <string>
 
 struct Light {
     static inline int cleared = 0;
     void Clear() { ++cleared; }
 };
-void Check(bool value) { if (!value) throw std::runtime_error("NPC light manager failed"); }
+void Check(bool value, std::source_location at = std::source_location::current()) {
+    if (!value) throw std::runtime_error("NPC light manager failed at line " + std::to_string(at.line()));
+}
 int main() {
     try {
         NpcLightManager<int, int, Light> manager{2};
@@ -78,6 +82,65 @@ int main() {
         frame(1); // dialogue and selected overlap, oldest outgoing dialogue removed
         Check(crowd.Size() == 33);
         crowd.Clear();
-        std::cout << "NPC deduplication, source fallback, fade reversal, capacity, invalidation and reset passed.\n";
+        // Recruitment, selected override, dialogue override, and dismissal use one light.
+        manager.Clear();
+        const int baseline = Light::cleared;
+        manager.BeginFrame(); manager.Submit(10, NpcLightSource::Follower, 30, false, 0); tick();
+        Check(manager.Size() == 1 && rendered.at(10).first == 30);
+        manager.BeginFrame();
+        manager.Submit(10, NpcLightSource::Follower, 30, false, 0);
+        manager.Submit(10, NpcLightSource::Selected, 40, false, 0);
+        manager.Submit(10, NpcLightSource::Dialogue, 50, false, 0); tick();
+        Check(manager.Size() == 1 && rendered.at(10).first == 50);
+        manager.BeginFrame();
+        manager.Submit(10, NpcLightSource::Follower, 30, false, 0);
+        manager.Submit(10, NpcLightSource::Selected, 40, false, 0); tick();
+        Check(manager.Size() == 1 && rendered.at(10).first == 40);
+        manager.BeginFrame(); manager.Submit(10, NpcLightSource::Follower, 30, false, 0); tick();
+        Check(rendered.at(10).first == 30 && Light::cleared == baseline);
+        manager.BeginFrame(); tick();
+        Check(manager.Size() == 0 && Light::cleared == baseline + 1);
+        // A hard visibility veto removes even a higher-priority dialogue override immediately.
+        manager.BeginFrame();
+        manager.Submit(20, NpcLightSource::Follower, 30, true, 10);
+        manager.Submit(20, NpcLightSource::Selected, 40, true, 10);
+        manager.Submit(20, NpcLightSource::Dialogue, 50, true, 10);
+        tick(0.1f);
+        invalid.insert(20); tick(0);
+        Check(manager.Size() == 0 && !rendered.contains(20));
+        invalid.erase(20);
+        manager.BeginFrame(); manager.Submit(20, NpcLightSource::Follower, 30, false, 0); tick();
+        Check(manager.Size() == 1 && rendered.at(20).first == 30);
+        manager.Clear();
+        // A new dialogue must preempt active lower-priority entries at capacity.
+        invalid.clear();
+        manager.BeginFrame();
+        manager.Submit(1, NpcLightSource::Follower, 1, false, 0);
+        manager.Submit(2, NpcLightSource::Selected, 2, false, 0); tick();
+        manager.Submit(3, NpcLightSource::Dialogue, 3, false, 0); tick();
+        Check(rendered.contains(3) && rendered.contains(2) && !rendered.contains(1));
+        // Protection hard-releases secondary lights, including outgoing fades.
+        manager.Protect(1, [](int, int) { return true; }); tick();
+        Check(manager.Size() == 1 && rendered.contains(3));
+        manager.BeginFrame();
+        manager.Submit(1, NpcLightSource::Follower, 1, false, 0);
+        manager.Submit(2, NpcLightSource::Selected, 2, false, 0);
+        manager.Protect(1, [](int, int) { return true; }); tick();
+        Check(manager.Size() == 1 && rendered.contains(2));
+        // Spatial veto does not change the producer's preference; next frame restores it.
+        manager.Protect(1, [](int, int) { return false; }); tick();
+        Check(manager.Size() == 0);
+        manager.BeginFrame(); manager.Submit(2, NpcLightSource::Selected, 2, false, 0);
+        manager.Protect(1, [](int, int) { return true; }); tick();
+        Check(rendered.contains(2));
+        // Dialogue wins even when its follower request fails the spatial test.
+        manager.BeginFrame();
+        manager.Submit(2, NpcLightSource::Follower, 2, false, 0);
+        manager.Submit(2, NpcLightSource::Dialogue, 3, false, 0);
+        manager.Protect(0, [](int, int) { return false; }); tick();
+        Check(manager.Size() == 1 && rendered.at(2).first == 3);
+        manager.BeginFrame(); manager.Protect(0, [](int, int) { return true; }); tick();
+        Check(manager.Size() == 0);
+        std::cout << "NPC source priority, preemption, protection budget, restoration and lifecycle passed.\n";
     } catch (const std::exception& e) { std::cerr << e.what(); return 1; }
 }

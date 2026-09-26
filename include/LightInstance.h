@@ -7,6 +7,8 @@
 #include "LightPlacement.h"
 #include "CSLighting.h"
 #include "ColorTemperature.h"
+#include "LightExclusionProbe.h"
+#include "ActorRuntime.h"
 
     // Scene ownership changes only in the player update hook or SKSE main-thread tasks.
     // Keep the holder until process exit, avoiding static destruction after the
@@ -18,13 +20,15 @@
         RE::NiPointer<RE::NiPointLight> light;
         RE::NiPointer<RE::BSLight> rendererLight;
         RE::FormID cellID = 0;
+        RE::FormID actorID = 0;
         std::optional<Settings::Values> applied;
-        void Clear() {
+        void Clear(const char* reason = "manager release") {
             if (light) {
+                LightExclusionProbe::Unregister(light.get());
                 light->GetLightRuntimeData().fade = 0.0f;
                 if (scene && rendererLight) scene->RemoveLight(rendererLight);
                 if (light->parent) light->parent->DetachChild(light.get());
-                SKSE::log::debug("Face light removed");
+                SKSE::log::debug("Face light removed: actor={:08X}, reason={}", actorID, reason);
             }
             rendererLight.reset();
             light.reset();
@@ -32,30 +36,33 @@
             root.reset();
             scene.reset();
             cellID = 0;
+            actorID = 0;
             applied.reset();
         }
 
-        void Update(RE::Actor* player, const Settings::Values& settings, float opacity = 1.0f) {
-            if (!player || !settings.enabled || settings.intensity <= 0 || opacity <= 0) {
-                Clear();
+        void Update(RE::Actor* player, const Settings::Values& settings, float opacity = 1.0f, bool firstPerson = false) {
+            if (!ActorRuntime::SafeForLight(player) || ActorRuntime::SneakHidden(player, settings.hideWhileSneaking) ||
+                !settings.enabled || settings.intensity <= 0 || opacity <= 0) {
+                Clear("actor hidden, unsafe or light disabled");
                 return;
             }
             const auto cell = player->GetParentCell();
-            const auto currentRoot = player->Get3D(false);
+            const auto camera = firstPerson ? RE::PlayerCamera::GetSingleton() : nullptr;
+            RE::NiAVObject* currentRoot = firstPerson ? (camera ? camera->cameraRoot.get() : nullptr) : player->Get3D(false);
             const auto currentScene = RE::BSShaderManager::State::GetSingleton().shadowSceneNode[0];
             static const RE::BSFixedString headName("NPC Head [Head]");
             const auto headObject = currentRoot ? currentRoot->GetObjectByName(headName) : nullptr;
-            const auto currentHead = headObject ? headObject->AsNode() : nullptr;
+            const auto currentHead = firstPerson ? (currentRoot ? currentRoot->AsNode() : nullptr) : (headObject ? headObject->AsNode() : nullptr);
             if (!cell || !cell->IsAttached() || !currentRoot || !currentHead || !currentScene ||
                 !std::isfinite(currentHead->world.scale) || currentHead->world.scale <= 0.0001f) {
-                Clear();
+                Clear("missing or invalid scene/head");
                 return;
             }
             if (root.get() != currentRoot || head.get() != currentHead || scene.get() != currentScene || cellID != cell->GetFormID()) {
-                Clear();
+                Clear("root, head or scene changed");
             }
             const auto localOffset = LightPlacement::LocalOffset(currentHead->world, player->GetAngleZ(),
-                {settings.offsetX, settings.offsetY, settings.offsetZ}, settings.followHeadRotation);
+                {settings.offsetX, settings.offsetY, settings.offsetZ}, firstPerson || settings.followHeadRotation);
             const auto position = currentHead->world * localOffset;
             if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z)) {
                 Clear();
@@ -67,10 +74,12 @@
             if (creating) {
                 light.reset(RE::NiPointLight::Create());
                 if (!light) return;
+                LightExclusionProbe::Register(light.get(), player->IsPlayerRef());
                 root.reset(currentRoot);
                 head.reset(currentHead);
                 scene.reset(currentScene);
                 cellID = cell->GetFormID();
+                actorID = player->GetFormID();
                 light->name = player->IsPlayerRef() ? "FaceLighting_PlayerLight" : "FaceLighting_DialogueLight";
                 auto& data = light->GetLightRuntimeData();
                 data.ambient = {0.0f, 0.0f, 0.0f};
@@ -125,8 +134,7 @@
                     Clear();
                     return;
                 }
-                SKSE::log::debug("Face light created in cell {:08X}", cellID);
+                SKSE::log::debug("Face light created: actor={:08X}, player={}, cell={:08X}", actorID, player->IsPlayerRef(), cellID);
             }
         }
     };
-

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2560" height="1440" viewBox="0 0 2560 1440">
+<title>Face Lighting SKSE</title><desc>Clean vector promotional cover, player and NPC face lighting.</desc>
+<rect width="2560" height="1440" fill="#11191b"/>
+<g font-family="Segoe UI, Arial, sans-serif">
+<text x="168" y="390" fill="#b4bdbd" font-size="37" letter-spacing="13">SKYRIM SPECIAL EDITION</text>
+<text x="154" y="650" fill="#f4f1e8" font-size="244" font-weight="700" letter-spacing="-6">FACE</text>
+<text x="154" y="899" fill="#f4f1e8" font-size="244" font-weight="700" letter-spacing="-6">LIGHTING</text>
+<text x="170" y="1020" fill="#aeb9b9" font-size="47">Player, NPC &amp; follower lighting.</text>
+</g>
+<g transform="scale(1.5)" fill="none" stroke="#f4f1e8" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+<path d="M1307 321 C1307 304 1313 294 1327 293 C1335 267 1371 254 1403 271 C1431 267 1459 276 1484 294 C1525 310 1549 345 1545 391 L1541 416 C1544 439 1553 458 1547 483 C1543 501 1530 518 1515 530"/>
+<path d="M1403 271 C1373 273 1349 282 1336 294 M1455 289 C1471 289 1482 295 1496 305"/>
+<path d="M1327 293 Q1320 306 1325 318 C1355 302 1380 300 1414 307"/>
+<path d="M1307 321 C1293 333 1287 351 1278 365 L1270 378 Q1284 382 1283 395 C1281 411 1264 427 1249 438 Q1238 445 1248 456 L1257 465 Q1261 472 1253 480 Q1242 485 1249 494 L1255 500 Q1244 509 1249 519 C1253 528 1245 537 1247 546 C1249 561 1269 565 1294 566 C1316 573 1325 591 1329 614 C1334 641 1327 662 1318 676"/>
+<path d="M1294 566 C1320 563 1354 562 1378 558 C1395 555 1407 542 1415 523"/>
+<path d="M1325 318 C1349 305 1378 317 1398 340 C1420 365 1454 389 1480 400 C1490 405 1499 415 1502 424"/>
+<path d="M1398 340 C1410 369 1415 397 1423 428 C1428 449 1438 464 1446 472 Q1453 480 1440 486"/>
+<path d="M1417 386 C1424 408 1431 425 1443 435"/>
+<path d="M1367 316 C1393 314 1414 331 1434 344 C1455 358 1478 365 1492 374"/>
+<path d="M1309 383 C1330 377 1354 380 1367 395"/>
+<path d="M1316 409 C1325 398 1337 402 1351 413"/>
+<path d="M1265 404 Q1273 401 1278 403"/>
+<path d="M1264 455 Q1270 454 1274 460" stroke-width="2.7"/>
+<path d="M1258 495 C1268 493 1278 498 1289 501 M1254 511 Q1262 514 1270 512" stroke-width="3.3"/>
+<path d="M1454 453 C1469 437 1488 445 1489 462 C1492 484 1476 501 1454 508 Q1439 515 1430 507"/>
+<path d="M1459 463 Q1472 461 1467 477" stroke-width="3.3"/>
+<path d="M1460 535 C1455 569 1459 610 1478 638 Q1489 653 1504 663"/>
+<path d="M1527 456 C1516 486 1520 507 1530 524 C1537 548 1517 565 1507 582"/>
+<path d="M1518 532 C1497 552 1477 582 1490 613"/>
+<path d="M1527 391 Q1540 410 1541 430" stroke-width="3.3"/>
+</g>
+<g transform="scale(1.5)" fill="none" stroke="#d5af6c" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="1138" cy="270" r="25"/>
+<path d="M1181 280 L1257 322 M1167 302 L1236 377 M1141 315 L1207 442"/>
+<path d="M1249 438 Q1238 445 1248 456 L1257 465 Q1261 472 1253 480 Q1242 485 1249 494 L1255 500 Q1244 509 1249 519 C1253 528 1245 537 1247 546"/>
+</g></svg>

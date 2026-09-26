@@ -43,3 +43,21 @@ https://github.com/community-shaders/skyrim-community-shaders/blob/dev/src/Shade
 
 建议先确认 CS 自带 Character Lighting 的观感是否符合需求，再决定是否开发独立的“角色柔光”模式。保留现有点光模式用于需要位置、半径和场景交互的用户。本轮只完成评估，没有改动 CS 设置、全局角色光或着色器。
 
+
+## 2026-09-19 复评：推荐独立角色补光模式
+
+重新核对本地 Jiaye 0816 的 Lighting.hlsl 2474–2478 行，以及 [CS dev Lighting.hlsl](https://github.com/community-shaders/skyrim-community-shaders/blob/dev/package/Shaders/Lighting.hlsl)：CharacterLight 分支将额外项加入 diffuseColor，与点光源 diffuse/specular 计算分开。用户描述更接近这类角色着色补光，而非缩小点光半径或增加阴影柔化。此判断针对效果方向，不宣称原版每个 NPC、每种材质均启用相同标记。
+
+[CS dev SubsurfaceScattering.cpp](https://github.com/community-shaders/skyrim-community-shaders/blob/dev/src/Features/SubsurfaceScattering.cpp)提供 Character Lighting 开关与强度，并在 Reset 中写入共享 characterLightEnabled／characterLightParams。因此不应在本插件每帧争写这些全局值；该选项虽位于 SSS 页面，但 Character Lighting 与皮肤散射本身是不同功能。页面与代码来自可变 dev 分支，不代表所有发布版设置相同。
+
+可研究的路线：
+
+1. 现有点光调整：降低强度、减少近距离过曝、调偏移与范围，工作量较低；无法保证不照墙，缩小半径可能出现边界截断。CS 光源 size 字段也没有证明为通用角色柔光或接收对象过滤开关。
+2. 原版渲染接收对象过滤：本地 BSLight 有 geomList、objectNode、affectLand、affectWater 等字段，值得做引擎专项验证；字段存在不代表稳定 API。关闭地形／水面影响不等于排除建筑墙面，CS clustered lighting 也不保证尊重原生对象列表。因此不能仅凭这些字段宣布原版与 CS 均可只照角色。
+3. 角色着色补光（更符合目标）：先复用或验证 Character Lighting 的观感，再研究仅对所选 Actor 的渲染对象施加独立的漫反射补光参数。若没有合适的现成接口，需绘制阶段钩子或 CS 专门集成，而不是简单向 NiPointLight 增加开关。
+
+应将“仅目标角色整体”作为第一阶段，“仅皮肤、不影响衣甲”作为第二阶段。后者要处理脸／身体／手／眼睛／头发、衣甲内嵌皮肤、兽族、自定义身体、第一人称双手，以及换装与模型重建。不能直接把 skinned mesh（骨骼蒙皮网格）当成 skin material（皮肤材质）。渲染属性还可能共享，避免无意影响其他角色。
+
+专项原型的验收：只选一个角色，关闭其点光，确认柔光可独立开关；邻近未选择 NPC 和墙面没有直接补光；对话／指定／随从优先级保持单一结果；换装、读档、换场景与镜头切换可正确恢复。先选一个固定 CS/Jiaye 构建验证，原版与其他分支、ENB 分开核验。反射／间接光仍可能反映变亮后的角色，不承诺最终画面中环境每个像素都完全不变。
+
+开发顺序建议：亮度诊断原型与角色柔光观感对照都值得先做，但均不直接加入已验收稳定版。若只能先投入一项工程，先完成玩家暗环境数据验证；若用户最在意墙面被照亮，则优先角色补光专项原型，而不是继续给点光叠加参数。角色着色补光可能减少对引擎光照检测的反馈，但同样要实测，不能当作已证实的优势。

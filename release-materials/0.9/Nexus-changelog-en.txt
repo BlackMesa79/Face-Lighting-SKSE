@@ -1,0 +1,14 @@
+0.9.0
+- Added selected NPC lighting: aim and press Shift+L to add/enable, then toggle; crosshair and console menu selection; per-save lists and individual controls.
+- Added automatic follower lighting with per-follower switches and teammate-based custom follower detection.
+- Added optional first-person player lighting and smooth player transitions (0.2 seconds by default).
+- Added optional dark-environment player lighting, including fixed compensation and verified 1.6.1170 live exclusion of this mod's player/NPC light contributions.
+- Added validated, expiring ambient samples with pause/load handling, separate thresholds and sustained-condition timing.
+- Redesigned the settings menu and added roster success/failure notifications.
+- Expanded sneak hiding to player teammates, overriding dialogue/selected sources on those followers and automatic darkness control.
+- Improved player/NPC death-state cleanup and retained missing-head/model-change safeguards. Player decapitation remains unverified.
+- Retained English/Chinese localization, optional Community Shaders integration, and existing player keyboard/controller controls.
+
+Upgrade: preserve your INI and matching SKSE co-saves. New automatic control and diagnostics are off by default. Live exclusion requires the verified 1.6.1170 layout and a restart after saving its first activation.
+
+- Release cleanup: removed developer diagnostic UI and observation-only mode. CS integration is now on/off without a version whitelist; detected versions remain visible. Legacy auto/manual-on migrate to on, disabled stays off.

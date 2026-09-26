@@ -27,10 +27,6 @@ namespace CSLighting {
 
     constexpr float InverseFade(float intensity) { return intensity * inverseIntensityScale; }
 
-    constexpr bool SupportsVersion(unsigned major, unsigned minor, unsigned patch) {
-        return major == 1 && ((minor == 6 && patch == 0) || (minor == 8 && patch == 4));
-    }
-
     struct Range {
         float radius;
         float cutoff;
@@ -62,11 +58,11 @@ namespace CSLighting {
     }
 
     void Detect();
-    constexpr bool ModeEnabled(int mode, bool loaded, bool recognized) {
-        return loaded && (mode == 1 || (mode == 0 && recognized));
+    constexpr bool ModeEnabled(int mode, bool loaded) {
+        return loaded && (mode == 0 || mode == 1); // Legacy auto acts as enabled.
     }
-    bool Available(int mode = 0);
-    const char* Status(std::string_view language = "en", int mode = 0);
+    bool Available(int mode = 1);
+    const char* Status(std::string_view language = "en", int mode = 1);
     std::string Diagnostics(std::string_view language = "en");
 }
 

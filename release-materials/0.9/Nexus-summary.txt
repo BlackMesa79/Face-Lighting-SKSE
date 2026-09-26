@@ -1,0 +1,1 @@
+Adjustable face lighting for the player, selected NPCs and followers, with dialogue lighting, smooth fades, sneak hiding and optional dark-environment control. Includes a live settings menu and optional Community Shaders integration.

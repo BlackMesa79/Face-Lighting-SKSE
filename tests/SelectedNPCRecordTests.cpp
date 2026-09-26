@@ -22,6 +22,16 @@ int main() {
         output.clear();
         AppendResolved(output, input, [](auto, auto& resolved) { resolved = 200; return true; });
         Check(output.size() == 1);
+        output.clear();
+        Check(!Toggle(output, 0, true) && !Toggle(output, 0x14, true) && output.empty());
+        Check(Toggle(output, 100, true) && output.size() == 1 && output[0].enabled == 1);
+        Check(Toggle(output, 100, true) && output.size() == 1 && output[0].enabled == 0);
+        Check(Toggle(output, 100, true) && output[0].enabled == 1);
+        Check(Toggle(output, 100, false) && output[0].enabled == 1);
+        for (unsigned i = 1; i < limit; ++i) Check(Toggle(output, 100 + i, true));
+        Check(!Toggle(output, 999, true) && output.size() == limit);
+        Check(Toggle(output, 100, true) && output[0].enabled == 0);
+        Check(Toggle(output, 100, true) && output[0].enabled == 1);
         std::cout << "Selected NPC record bounds, remapping, missing forms, invalid flags and deduplication passed.\n";
     } catch (const std::exception& error) { std::cerr << error.what(); return 1; }
 }

@@ -8,11 +8,10 @@
 #include "Localization.h"
 
 namespace {
-    enum class Support { pending, absent, unsupported, supported, experimental };
+    enum class Support { pending, absent, loaded };
     std::atomic<Support> support = Support::pending;
     std::mutex diagnosticMutex;
     std::string diagnostic, dllVersion, islMetadata;
-    bool versionMatch = false, metadataMatch = false;
 }
 
 void CSLighting::Detect() {
@@ -24,7 +23,7 @@ void CSLighting::Detect() {
         SKSE::log::info("Community Shaders not loaded; using regular face light");
         return;
     }
-    support = Support::unsupported;
+    support = Support::loaded;
     diagnostic = "CommunityShaders.dll: loaded; version information unavailable";
     wchar_t path[32768]{};
     const auto length = GetModuleFileNameW(module, path, 32768);
@@ -47,29 +46,16 @@ void CSLighting::Detect() {
     char islVersion[64]{};
     GetPrivateProfileStringA("Info", "Version", "", islVersion, sizeof(islVersion),
         ".\\Data\\Shaders\\Features\\InverseSquareLighting.ini");
-    const bool metadataMatches = std::string_view(islVersion) == "1-3-0";
     dllVersion = std::format("{}.{}.{}.{}", major, minor, patch, build);
     islMetadata = islVersion;
-    versionMatch = SupportsVersion(major, minor, patch);
-    metadataMatch = metadataMatches;
-    diagnostic = std::format("DLL: {}.{}.{}.{} | ISL: {} | Version match: {} | Metadata match: {}",
-        major, minor, patch, build, islVersion[0] ? islVersion : "missing",
-        SupportsVersion(major, minor, patch), metadataMatches);
-    std::error_code error;
-    const bool experimentalFiles = std::filesystem::exists(
-        "Data/Shaders/Features/PostProcessing.ini", error);
-    if (SupportsVersion(major, minor, patch) && metadataMatches) {
-        support = experimentalFiles ? Support::experimental : Support::supported;
-    }
-    SKSE::log::info("Community Shaders {}.{}.{}.{}: {}", major, minor, patch, build, Status());
-    SKSE::log::info("CS metadata: ISL={}, PostProcessing files={}; this is protocol detection, not proof of enabled features or exact source commit",
-        islVersion, experimentalFiles);
+    SKSE::log::info("Community Shaders loaded: DLL={}, ISL={}; integration follows the user's switch, not a version whitelist",
+        dllVersion, islMetadata.empty() ? "missing" : islMetadata);
+
 }
 
 bool CSLighting::Available(int mode) {
     const auto value = support.load();
-    return ModeEnabled(mode, value != Support::pending && value != Support::absent,
-        value == Support::supported || value == Support::experimental);
+    return ModeEnabled(mode, value == Support::loaded);
 }
 
 std::string CSLighting::Diagnostics(std::string_view language) {
@@ -78,22 +64,13 @@ std::string CSLighting::Diagnostics(std::string_view language) {
     if (support.load() == Support::pending) return tr(Localization::csPending);
     if (support.load() == Support::absent) return tr(Localization::diagNotLoaded);
     if (dllVersion.empty()) return tr(Localization::diagUnavailable);
-    return std::format("DLL: {} | ISL: {} | {}: {} | {}: {}", dllVersion,
-        islMetadata.empty() ? tr(Localization::diagMissing) : islMetadata.c_str(),
-        tr(Localization::diagVersion), tr(versionMatch ? Localization::yes : Localization::no),
-        tr(Localization::diagMetadata), tr(metadataMatch ? Localization::yes : Localization::no));
+    return std::format("DLL: {} | ISL: {}", dllVersion,
+        islMetadata.empty() ? tr(Localization::diagMissing) : islMetadata.c_str());
 }
 
 const char* CSLighting::Status(std::string_view language, int mode) {
     if (mode == 2) return Localization::csOff.Get(language);
-    if (mode == 1 && Available(mode)) return Localization::csManual.Get(language);
-    switch (support.load()) {
-    case Support::supported: return Localization::csSupported.Get(language);
-    case Support::experimental: return Localization::csExperimental.Get(language);
-    case Support::absent: return Localization::csAbsent.Get(language);
-    case Support::unsupported: return Localization::csUnsupported.Get(language);
-    default: return Localization::csPending.Get(language);
-    }
+    if (Available(mode)) return Localization::csManual.Get(language);
+    if (support.load() == Support::absent) return Localization::csAbsent.Get(language);
+    return Localization::csPending.Get(language);
 }
-
-

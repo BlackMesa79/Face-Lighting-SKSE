@@ -25,15 +25,29 @@ namespace Settings {
         float inverseRadius = 100.0f;
         Dialogue dialogue;
         Dialogue selected;
+        Dialogue follower;
+        bool firstPersonLight = false;
+        bool lightDiagnostics = false;
+        bool exclusionDiagnostics = false; // Passive call-site probe; enable at startup only.
+        bool playerTransition = true;
+        float playerDuration = 0.2f;
+        int ambientMode = 0; // 0 disabled, 1 observe compensation, 2 fixed compensation, 3 live exclusion
+        float ambientCompensation = 80.0f; // Measured raw delta at the current light settings.
+        float ambientOnThreshold = 30.0f;
+        float ambientOffThreshold = 50.0f;
+        float ambientDelay = 2.0f;
+        bool rosterNotifications = true;
         bool enabled = false;
         int hotkey = 38; // DirectInput scan code: L; 0 disables the shortcut.
         int hotkeyModifier = 0; // 0 none, 1 Shift, 2 Ctrl, 3 Alt
+        int selectedHotkey = 38; // L
+        int selectedHotkeyModifier = 1; // Shift
         int gamepadKey = 0; // SKSE unified gamepad codes 266..281; 0 disabled
         int gamepadModifier = 0;
         bool hideWhileSneaking = true;
         std::string language = "auto"; // Language file code or Windows UI language.
         bool debugLogging = false;
-        int csMode = 0; // 0 automatic, 1 manual enable, 2 disabled
+        int csMode = 1; // 1 enabled, 2 disabled; legacy 0 migrates to enabled
         bool csGlobalLinear = false; // User confirmation; CS presence does not imply Linear Lighting.
         bool csInverseSquare = false;
         bool csLinear = false;

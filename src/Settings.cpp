@@ -38,10 +38,14 @@ namespace {
 
 Settings::Values Settings::Normalize(Values values) {
     const Values defaults;
+    if (values.selectedHotkey < 0 || values.selectedHotkey > 255) values.selectedHotkey = 38;
+    if (values.selectedHotkeyModifier < 0 || values.selectedHotkeyModifier > 3) values.selectedHotkeyModifier = 1;
+    if (values.selectedHotkeyModifier && Hotkeys::ModifierMask(values.selectedHotkey) == (1u << (values.selectedHotkeyModifier - 1)))
+        values.selectedHotkey = 38;
     if (!Hotkeys::ValidPadCode(values.gamepadKey)) values.gamepadKey = 0;
     if (!Hotkeys::ValidPadCode(values.gamepadModifier)) values.gamepadModifier = 0;
     if (values.gamepadKey != 0 && values.gamepadKey == values.gamepadModifier) values.gamepadModifier = 0;
-    if (values.csMode < 0 || values.csMode > 2) values.csMode = 0;
+    values.csMode = values.csMode == 2 ? 2 : 1; // Preserve legacy off; old auto/manual become on.
     if (values.hotkey < 0 || values.hotkey > 255) values.hotkey = 38;
     if (values.hotkeyModifier < 0 || values.hotkeyModifier > 3) values.hotkeyModifier = 0;
     if (values.hotkeyModifier && Hotkeys::ModifierMask(values.hotkey) == (1u << (values.hotkeyModifier - 1)))
@@ -51,6 +55,13 @@ Settings::Values Settings::Normalize(Values values) {
         return std::isfinite(value) ? std::clamp(value, low, high) : fallback;
     };
     values.radius = clamp(values.radius, minRadius, maxRadius, defaults.radius);
+    values.playerDuration = clamp(values.playerDuration, 0.0f, 3.0f, defaults.playerDuration);
+    if (values.ambientMode < 0 || values.ambientMode > 3) values.ambientMode = 0;
+    values.ambientCompensation = clamp(values.ambientCompensation, 0.0f, 1000.0f, defaults.ambientCompensation);
+    values.ambientOnThreshold = clamp(values.ambientOnThreshold, 0.0f, 999.0f, defaults.ambientOnThreshold);
+    values.ambientOffThreshold = clamp(values.ambientOffThreshold, values.ambientOnThreshold + 1.0f, 1000.0f,
+        std::max(defaults.ambientOffThreshold, values.ambientOnThreshold + 1.0f));
+    values.ambientDelay = clamp(values.ambientDelay, 0.5f, 10.0f, defaults.ambientDelay);
     values.inverseRadius = clamp(values.inverseRadius, minRadius, maxRadius, defaults.inverseRadius);
     values.dialogue.inverseRadius = clamp(values.dialogue.inverseRadius, minRadius, maxRadius, defaults.dialogue.inverseRadius);
     values.intensity = clamp(values.intensity, 0.0f, maxIntensity, defaults.intensity);
@@ -73,6 +84,14 @@ Settings::Values Settings::Normalize(Values values) {
     values.selected.offsetZ = clamp(values.selected.offsetZ, -maxOffset, maxOffset, defaults.selected.offsetZ);
     values.selected.duration = clamp(values.selected.duration, 0.0f, 3.0f, defaults.selected.duration);
     values.selected.temperature = clamp(values.selected.temperature, 2000.0f, 10000.0f, defaults.selected.temperature);
+    values.follower.inverseRadius = clamp(values.follower.inverseRadius, minRadius, maxRadius, defaults.follower.inverseRadius);
+    values.follower.radius = clamp(values.follower.radius, minRadius, maxRadius, defaults.follower.radius);
+    values.follower.intensity = clamp(values.follower.intensity, 0.0f, maxIntensity, defaults.follower.intensity);
+    values.follower.offsetX = clamp(values.follower.offsetX, -maxOffset, maxOffset, defaults.follower.offsetX);
+    values.follower.offsetY = clamp(values.follower.offsetY, -maxOffset, maxOffset, defaults.follower.offsetY);
+    values.follower.offsetZ = clamp(values.follower.offsetZ, -maxOffset, maxOffset, defaults.follower.offsetZ);
+    values.follower.duration = clamp(values.follower.duration, 0.0f, 3.0f, defaults.follower.duration);
+    values.follower.temperature = clamp(values.follower.temperature, 2000.0f, 10000.0f, defaults.follower.temperature);
     return values;
 }
 
@@ -108,7 +127,7 @@ void Settings::Load() {
     values.followHeadRotation = GetPrivateProfileIntA("General", "FollowHeadRotation", 0, path) != 0;
     values.dialogue.followHeadRotation = GetPrivateProfileIntA("General", "DialogueFollowHeadRotation", 0, path) != 0;
     values.debugLogging = GetPrivateProfileIntA("General", "DebugLogging", 0, path) != 0;
-    values.csMode = GetPrivateProfileIntA("General", "CSMode", 0, path);
+    values.csMode = GetPrivateProfileIntA("General", "CSMode", 1, path);
     values.csGlobalLinear = GetPrivateProfileIntA("General", "CSGlobalLinearLighting", 0, path) != 0;
     values.csInverseSquare = GetPrivateProfileIntA("General", "CSInverseSquare", 0, path) != 0;
     values.csLinear = GetPrivateProfileIntA("General", "CSLinear", 0, path) != 0;
@@ -132,6 +151,8 @@ void Settings::Load() {
     values.dialogue.csInverseSquare = GetPrivateProfileIntA("General", "DialogueCSInverseSquare", 1, path) != 0;
     values.dialogue.csLinear = GetPrivateProfileIntA("General", "DialogueCSLinear", 1, path) != 0;
     values.hotkey = GetPrivateProfileIntA("General", "PlayerHotkey", 38, path);
+    values.selectedHotkey = GetPrivateProfileIntA("General", "SelectedHotkey", 38, path);
+    values.selectedHotkeyModifier = GetPrivateProfileIntA("General", "SelectedHotkeyModifier", 1, path);
     values.gamepadKey = GetPrivateProfileIntA("General", "PlayerGamepadKey", 0, path);
     values.gamepadModifier = GetPrivateProfileIntA("General", "PlayerGamepadModifier", 0, path);
     values.hotkeyModifier = GetPrivateProfileIntA("General", "PlayerHotkeyModifier", 0, path);
@@ -152,6 +173,31 @@ void Settings::Load() {
     values.selected.csInverseSquare = GetPrivateProfileIntA("General", "SelectedCSInverseSquare", 1, path) != 0;
     values.selected.csLinear = GetPrivateProfileIntA("General", "SelectedCSLinear", 1, path) != 0;
     values.selected.temperature = ReadFloat("SelectedTemperature", values.selected.temperature);
+    values.follower.followHeadRotation = GetPrivateProfileIntA("General", "FollowerFollowHeadRotation", 0, path) != 0;
+    values.follower.manualRange = GetPrivateProfileIntA("General", "FollowerManualInverseRange", 0, path) != 0;
+    values.follower.inverseRadius = ReadFloat("FollowerInverseRadius", values.follower.inverseRadius);
+    values.follower.radius = ReadFloat("FollowerRadius", values.follower.radius);
+    values.follower.intensity = ReadFloat("FollowerIntensity", values.follower.intensity);
+    values.follower.offsetX = ReadFloat("FollowerOffsetX", values.follower.offsetX);
+    values.follower.offsetY = ReadFloat("FollowerOffsetY", values.follower.offsetY);
+    values.follower.offsetZ = ReadFloat("FollowerOffsetZ", values.follower.offsetZ);
+    values.follower.duration = ReadFloat("FollowerDuration", values.follower.duration);
+    values.follower.enabled = GetPrivateProfileIntA("General", "FollowerEnabled", 1, path) != 0;
+    values.follower.transition = GetPrivateProfileIntA("General", "FollowerTransition", 1, path) != 0;
+    values.follower.csInverseSquare = GetPrivateProfileIntA("General", "FollowerCSInverseSquare", 1, path) != 0;
+    values.follower.csLinear = GetPrivateProfileIntA("General", "FollowerCSLinear", 1, path) != 0;
+    values.follower.temperature = ReadFloat("FollowerTemperature", values.follower.temperature);
+    values.firstPersonLight = GetPrivateProfileIntA("General", "FirstPersonLight", 0, path) != 0;
+    values.lightDiagnostics = GetPrivateProfileIntA("General", "LightDiagnostics", 0, path) != 0;
+    values.exclusionDiagnostics = GetPrivateProfileIntA("General", "ExclusionDiagnostics", 0, path) != 0;
+    values.playerTransition = GetPrivateProfileIntA("General", "PlayerTransition", 1, path) != 0;
+    values.playerDuration = ReadFloat("PlayerDuration", values.playerDuration);
+    values.ambientMode = GetPrivateProfileIntA("General", "AmbientMode", 0, path);
+    values.ambientCompensation = ReadFloat("AmbientCompensation", values.ambientCompensation);
+    values.ambientOnThreshold = ReadFloat("AmbientOnThreshold", values.ambientOnThreshold);
+    values.ambientOffThreshold = ReadFloat("AmbientOffThreshold", values.ambientOffThreshold);
+    values.ambientDelay = ReadFloat("AmbientDelay", values.ambientDelay);
+    values.rosterNotifications = GetPrivateProfileIntA("General", "RosterNotifications", 1, path) != 0;
     Publish(Normalize(values));
     SKSE::log::info("Settings loaded: enabled={}, radius={}, intensity={}", current.enabled, current.radius, current.intensity);
 }
@@ -198,6 +244,8 @@ bool Settings::Save(const Values& requested) {
     append("DialogueCSInverseSquare", values.dialogue.csInverseSquare ? "1" : "0");
     append("DialogueCSLinear", values.dialogue.csLinear ? "1" : "0");
     append("PlayerHotkey", std::format("{}", values.hotkey));
+    append("SelectedHotkey", std::format("{}", values.selectedHotkey));
+    append("SelectedHotkeyModifier", std::format("{}", values.selectedHotkeyModifier));
     append("PlayerGamepadKey", std::format("{}", values.gamepadKey));
     append("PlayerGamepadModifier", std::format("{}", values.gamepadModifier));
     append("PlayerHotkeyModifier", std::format("{}", values.hotkeyModifier));
@@ -218,6 +266,31 @@ bool Settings::Save(const Values& requested) {
     append("SelectedCSInverseSquare", values.selected.csInverseSquare ? "1" : "0");
     append("SelectedCSLinear", values.selected.csLinear ? "1" : "0");
     append("SelectedTemperature", std::format("{}", values.selected.temperature));
+    append("FollowerFollowHeadRotation", values.follower.followHeadRotation ? "1" : "0");
+    append("FollowerManualInverseRange", values.follower.manualRange ? "1" : "0");
+    append("FollowerInverseRadius", std::format("{}", values.follower.inverseRadius));
+    append("FollowerRadius", std::format("{}", values.follower.radius));
+    append("FollowerIntensity", std::format("{}", values.follower.intensity));
+    append("FollowerOffsetX", std::format("{}", values.follower.offsetX));
+    append("FollowerOffsetY", std::format("{}", values.follower.offsetY));
+    append("FollowerOffsetZ", std::format("{}", values.follower.offsetZ));
+    append("FollowerDuration", std::format("{}", values.follower.duration));
+    append("FollowerEnabled", values.follower.enabled ? "1" : "0");
+    append("FollowerTransition", values.follower.transition ? "1" : "0");
+    append("FollowerCSInverseSquare", values.follower.csInverseSquare ? "1" : "0");
+    append("FollowerCSLinear", values.follower.csLinear ? "1" : "0");
+    append("FollowerTemperature", std::format("{}", values.follower.temperature));
+    append("FirstPersonLight", values.firstPersonLight ? "1" : "0");
+    append("LightDiagnostics", values.lightDiagnostics ? "1" : "0");
+    append("ExclusionDiagnostics", values.exclusionDiagnostics ? "1" : "0");
+    append("PlayerTransition", values.playerTransition ? "1" : "0");
+    append("PlayerDuration", std::to_string(values.playerDuration));
+    append("AmbientMode", std::to_string(values.ambientMode));
+    append("AmbientCompensation", std::to_string(values.ambientCompensation));
+    append("AmbientOnThreshold", std::to_string(values.ambientOnThreshold));
+    append("AmbientOffThreshold", std::to_string(values.ambientOffThreshold));
+    append("AmbientDelay", std::to_string(values.ambientDelay));
+    append("RosterNotifications", values.rosterNotifications ? "1" : "0");
     if (!WritePrivateProfileSectionA("General", section.c_str(), path)) {
         preview.reset();
         SKSE::log::error("Failed to save FaceLighting settings, Windows error {}", GetLastError());

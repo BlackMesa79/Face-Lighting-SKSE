@@ -26,6 +26,14 @@ int main() {
         Check(std::string(saveAll.Get("fr")) == "Save all settings###save");
         Check(std::string(playerEntry.Get("zh-cn")) == "玩家面光");
         Check(std::string(padKey.Get("zh-cn")) == "手柄快捷键###padKey");
+        Check(std::string(noticeNoTarget.Get("zh-cn")) == "面部光照：添加失败，未选中有效 NPC");
+        Check(std::string(lightDiagnostics.Get("fr")) == "Record player light-level diagnostics");
+        Check(std::string(ambientAutomatic.Get("zh-cn")).find("固定补偿") != std::string::npos);
+        Check(std::string(ambientFiltered.Get("zh-cn")).find("实时排除面光") != std::string::npos);
+        Check(std::string(ambientFiltered.Get("fr")).find("live exclusion") != std::string::npos);
+        Check(std::string(playerTransition.Get("zh-cn")).find("玩家面光渐亮渐暗") != std::string::npos);
+        Check(std::string(exclusionDiagnostics.Get("en")).find("restart required") != std::string::npos);
+        Check(std::string(ambientObserve.Get("en")).find("Observe compensation only") != std::string::npos);
         Load(root / "missing");
         Check(std::string(enabled.Get("fr")) == "Enable player face light###enabled");
         std::cout << "Localization UTF-8, language detection, fallback, invalid files and stable IDs passed.\n";

@@ -1,0 +1,4 @@
+0.9.1
+- Added player and dialogue light priority protection to reduce lighting conflicts in large follower groups. Other NPC lights may temporarily turn off and restore automatically.
+- Fixed priority handling when the NPC light pool is full and improved diagnostic logging.
+- Removed the bundled initial configuration INI. Existing settings are retained; new configurations use built-in defaults.

@@ -2,6 +2,11 @@
 #include "SelectedNPCs.h"
 #include "FaceLight.h"
 #include "ConfigMenu.h"
+#include "Settings.h"
+#include "Hotkeys.h"
+#include "ActorRuntime.h"
+#include "Followers.h"
+#include "Notifications.h"
 #include <mutex>
 #include <algorithm>
 #include <atomic>
@@ -16,14 +21,16 @@ namespace {
     std::atomic<std::uint64_t> epoch{0};
     bool active = false;
     bool Eligible(RE::Actor* actor) {
-        return actor && !actor->IsPlayerRef() && !actor->IsDeleted() && !actor->IsDisabled() && !actor->IsDead();
+        return ActorRuntime::Eligible(actor);
     }
     void Reset(SKSE::SerializationInterface*) {
+        Followers::RevertPreferences();
         std::scoped_lock lock(mutex);
         ++epoch;
         records.clear(); view = {}; crosshair = {}; console = {}; lastCrosshair = {}; active = false;
     }
     void Save(SKSE::SerializationInterface* api) {
+        Followers::Save(api);
         std::scoped_lock lock(mutex);
         if (!api->WriteRecord(recordType, 1, records.data(), static_cast<std::uint32_t>(records.size() * sizeof(Record))))
             SKSE::log::error("Could not save selected NPC list");
@@ -33,6 +40,7 @@ namespace {
         std::vector<Record> loaded;
         std::uint32_t type, version, length;
         while (api->GetNextRecordInfo(type, version, length)) {
+            if (Followers::LoadRecord(api, type, version, length)) continue;
             if (type != recordType || version != 1 || !SelectedNPCRecord::ValidLength(length)) continue;
             std::vector<Record> data(length / sizeof(Record));
             if (api->ReadRecordData(data.data(), length) != length) { SKSE::log::warn("Truncated selected NPC record"); continue; }
@@ -80,12 +88,40 @@ SelectedNPCs::View SelectedNPCs::Snapshot() { std::scoped_lock lock(mutex); retu
 void SelectedNPCs::AddTarget(bool useConsole) {
     Queue([useConsole] {
         const auto actor = (useConsole ? console : crosshair).get();
-        if (!Eligible(actor.get()) || records.size() >= limit) return;
+        if (!Eligible(actor.get())) { Notifications::Show(Localization::noticeNoTarget); return; }
         const auto id = actor->GetFormID();
-        if (std::none_of(records.begin(), records.end(), [&](auto& row) { return row.id == id; })) records.push_back({id, 1});
+        if (std::any_of(records.begin(), records.end(), [&](auto& row) { return row.id == id; })) {
+            Notifications::Show(Localization::noticeAlreadyAdded, actor->GetName()); return;
+        }
+        if (records.size() >= limit) { Notifications::Show(Localization::noticeListFull); return; }
+        records.push_back({id, 1});
+        Notifications::Show(Localization::noticeSelectedAdded, actor->GetName());
     });
 }
 void SelectedNPCs::Remove(RE::FormID id) { Queue([id] { std::erase_if(records, [id](auto& row) { return row.id == id; }); }); }
+void SelectedNPCs::ToggleCrosshairTarget() {
+    Queue([] {
+        if (!Hotkeys::CanToggle()) return;
+        // Read the live target only: never reuse the menu's cached crosshair or console target.
+        const auto pick = RE::CrosshairPickData::GetSingleton();
+        const auto ref = pick ? pick->GetActiveTarget().get() : RE::NiPointer<RE::TESObjectREFR>{};
+        const auto actor = ref ? ref->As<RE::Actor>() : nullptr;
+        if (!Eligible(actor)) { Notifications::Show(Localization::noticeNoTarget); return; }
+        auto values = Settings::Get();
+        auto updated = records;
+        const bool added = std::none_of(records.begin(), records.end(), [actor](const auto& row) { return row.id == actor->GetFormID(); });
+        if (!SelectedNPCRecord::Toggle(updated, actor->GetFormID(), values.selected.enabled)) {
+            Notifications::Show(Localization::noticeListFull); return;
+        }
+        if (!values.selected.enabled) {
+            values.selected.enabled = true;
+            if (!Settings::Save(values)) { Notifications::Show(Localization::noticeSaveFailed); return; }
+        }
+        records = std::move(updated);
+        const auto row = std::find_if(records.begin(), records.end(), [actor](const auto& entry) { return entry.id == actor->GetFormID(); });
+        Notifications::Show(added ? Localization::noticeSelectedAdded : row->enabled ? Localization::noticeSelectedOn : Localization::noticeSelectedOff, actor->GetName());
+    });
+}
 void SelectedNPCs::SetEnabled(RE::FormID id, bool enabled) { Queue([id, enabled] { for (auto& row : records) if (row.id == id) row.enabled = enabled; }); }
 std::vector<RE::ActorHandle> SelectedNPCs::Update() {
     std::scoped_lock lock(mutex);

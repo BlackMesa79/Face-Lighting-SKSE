@@ -47,3 +47,12 @@ The layout was informed by Cinematic Idle Camera and Cinematic Conversation
 Camera. Their UI templates, artwork and source code were not copied into the
 Face Lighting SKSE menu implementation. Reference links are recorded in
 [the selected NPC documentation](docs/selected-npc-lighting.md).
+
+## HDE64 instruction decoder
+
+The diagnostic call-site validator includes HDE64 from MinHook v1.3.4:
+https://github.com/TsudaKageyu/minhook/tree/v1.3.4/src/hde
+Copyright (c) 2008-2009 Vyacheslav Patkov. The included files are unmodified.
+The BSD-style upstream license and bundled notices are reproduced in
+`licenses/hde64/LICENSE.txt` in the package and `extern/hde64/LICENSE.txt` in source.
+Only the instruction decoder is compiled; MinHook detour installation is not used.

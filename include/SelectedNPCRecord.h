@@ -8,6 +8,17 @@ namespace SelectedNPCRecord {
     inline constexpr std::size_t limit = 32;
     struct Record { std::uint32_t id; std::uint32_t enabled; };
     static_assert(sizeof(Record) == 8);
+    // A disabled global source makes every row effectively off.
+    inline bool Toggle(std::vector<Record>& rows, std::uint32_t id, bool sourceEnabled) {
+        if (!id || id == 0x14) return false;
+        for (auto& row : rows) if (row.id == id) {
+            row.enabled = !(sourceEnabled && row.enabled);
+            return true;
+        }
+        if (rows.size() >= limit) return false;
+        rows.push_back({id, 1});
+        return true;
+    }
     constexpr bool ValidLength(std::uint32_t length) { return length % sizeof(Record) == 0 && length <= limit * sizeof(Record); }
     template <class Resolver>
     void AppendResolved(std::vector<Record>& output, std::span<const Record> input, Resolver resolve) {

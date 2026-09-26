@@ -1,0 +1,90 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Face Lighting SKSE 0.9 — Description preview</title><style>body{background:#13191d;color:#d6dbde;font:16px/1.8 "Segoe UI",sans-serif;margin:0}main{max-width:860px;margin:auto;padding:48px 28px}.center{text-align:center}.size6{font-size:34px}.size4{font-size:23px}.size2{font-size:13px;color:#a8b4ba}a{color:#dbc086}strong{color:#f2f2ec}ul>br{display:none}li{margin-bottom:12px}ul{padding-left:24px}</style><main><div class="center"><span class="size6"><strong>Face Lighting SKSE</strong></span><br>
+<span style="color:#C9AA72">Player, dialogue NPC &amp; follower lighting.</span><br>
+<br>
+Adjustable face lighting for you, your companions and the people you talk to.</div><br>
+<br>
+Add adjustable fill light to the player, your current dialogue partner, selected NPCs or recruited followers. Tune each lighting group separately, preview changes in-game, and keep the look that suits your setup.<br>
+<br>
+<span class="size4"><span style="color:#C9AA72"><strong>Your lights. Your settings.</strong></span></span><br>
+<ul><br>
+<li><strong>Player face light</strong> — Off initially, with automatic activation when entering dialogue enabled by default. An optional setting turns it off when dialogue ends. Visible in third person, with an optional first-person setting. Smooth player transitions default to 0.2 seconds; hides while sneaking by default.</li><br>
+<li><strong>Dialogue face light</strong> — Automatically lights the current dialogue partner in first or third person. Optional fade-in and fade-out, with adjustable duration.</li><br>
+<li><strong>Selected NPC face light</strong> — Aim at an NPC and press Shift+L to add and enable its light; press again to toggle. Crosshair and console targets can also be added from the menu. Individual enable/remove controls, with up to 32 NPCs per save.</li><br>
+<li><strong>Follower face light</strong> — Automatically lights recruited player teammates, with individual follower switches. Waiting teammates remain supported; dismissed followers leave the active list. Up to 32 loaded followers are lit, nearest first.</li><br>
+<li><strong>Dark-environment player light</strong> — Optional automatic switching based on local lighting, with separate thresholds and a sustained-condition delay. Choose fixed compensation or live exclusion of this mod&#x27;s player and NPC light contributions. Live exclusion requires the verified Skyrim 1.6.1170 code layout; see Compatibility below.</li><br>
+<li><strong>Independent controls</strong> — Adjust intensity, position, and color temperature from <strong>2000–10000 K</strong>. Adjust radius in regular mode. CS inverse-square mode offers <strong>Automatic</strong> range (default) or <strong>Manual</strong> radius, independently of intensity.</li><br>
+<li><strong>Bone orientation</strong> — Optional head-bone rotation following, independently configurable for player, dialogue, selected NPC and follower lights.</li><br>
+<li><strong>Live configuration</strong> — Three redesigned pages: General, Player face light, and NPC face light, with individual NPC controls and optional roster success/failure notifications. English and Simplified Chinese, with automatic Windows UI language detection and support for additional language files.</li><br>
+</ul><br>
+<br>
+Each NPC uses one managed face light. Dialogue settings take priority, followed by selected NPC settings, then follower settings.<br>
+<br>
+Automatic dark-environment control is <strong>off by default</strong> and requires the player light master switch. Defaults are below <strong>30</strong> to turn on and above <strong>50</strong> to turn off, sustained for <strong>2 seconds</strong>. Transitions and a settling period suspend decisions. Readings are not percentages and do not follow a fixed day/night schedule. Live exclusion needs no manual contribution calibration; fixed compensation does, and it does not remove nearby NPC light contributions.<br>
+<br>
+<span class="size4"><span style="color:#C9AA72"><strong>Keyboard &amp; controller</strong></span></span><br>
+Toggle player lighting with <strong>L</strong>, or choose your own shortcut with an optional <strong>Shift, Ctrl, or Alt</strong> modifier. F1–F12, number keys, navigation keys and numpad keys are also supported.<br>
+<br>
+Aim at an NPC and press <strong>Shift+L</strong> to add/toggle selected NPC lighting. Its binding is configurable and takes priority if it matches the player shortcut.<br>
+<br>
+Gamepad bindings are independent and <strong>disabled by default</strong>. Choose a button and an optional modifier on the Player page — for example, hold <strong>LB</strong> and press <strong>D-pad Up</strong>. Buttons use Xbox-style labels, including LT/RT. Save your binding before closing the menu.<br>
+<br>
+Shortcuts do not block the buttons&#x27; original game actions. Steam Input mapped to keyboard keys uses the keyboard shortcut instead.<br>
+<br>
+<span class="size4"><span style="color:#C9AA72"><strong>Get started</strong></span></span><br>
+Install with your mod manager and launch through SKSE. No ESP or Papyrus scripts are included.<br>
+<br>
+<strong>Required</strong><br>
+<a href="https://skse.silverlock.org/">SKSE64</a> and <a href="https://www.nexusmods.com/skyrimspecialedition/mods/32444">Address Library</a>, matching your game version.<br>
+<br>
+<strong>For the in-game menu</strong><br>
+<a href="https://www.nexusmods.com/skyrimspecialedition/mods/120352">SKSE Menu Framework</a>. You can also edit <strong>Data/SKSE/Plugins/FaceLighting.ini</strong> and restart.<br>
+<br>
+Open <strong>FaceLighting</strong> in the framework. Changes preview immediately and remain while switching pages. <strong>Save all settings</strong> keeps them; closing the menu discards unsaved edits. Keep your existing INI when upgrading; Mod Organizer users should also check the overwrite folder. New options use defaults when absent.<br>
+<br>
+<strong>NPC list edits and individual follower switches apply immediately and persist when you save the game.</strong> The menu save button only saves configuration. Preserve the matching .skse co-save when moving saves.<br>
+<br>
+First-person lighting, automatic dark control and diagnostics are off by default. Player lighting starts off with dialogue activation enabled; dialogue, selected and follower groups are enabled. To use live exclusion, save that mode and restart the game on first activation. Detailed diagnostic logging is optional.<br>
+<br>
+<span class="size4"><span style="color:#C9AA72"><strong>Community Shaders</strong></span></span><br>
+CS is optional. Inverse-square falloff uses automatic linear-light flags and calibrated intensity. Use the <strong>Enable Community Shaders integration</strong> switch in General. When enabled, integration works with a loaded CS DLL without a version whitelist; turn it off for regular lighting. The detected DLL and ISL version information stays visible for troubleshooting. Regular lighting remains available without CS.<br>
+<br>
+<strong>One setup step:</strong> in General, match <strong>“My CS global Linear Lighting is enabled”</strong> to your actual CS setting. This selects the face lights&#x27; color handling; it does not turn on CS. Update it whenever you change the global CS option.<br>
+<br>
+<span class="size4"><span style="color:#C9AA72"><strong>Compatibility</strong></span></span><br>
+<strong>Core lighting has previously passed in-game testing on Skyrim 1.5.97; the new features were tested on 1.6.1170.</strong> Do not assume every new feature has been retested on every runtime. The plugin is built for SE/AE; use dependencies matching your runtime. VR is not supported. <strong>Skyrim 1.7.x support is planned and is not included in the current release.</strong><br>
+<br>
+<strong>Live exclusion is limited to the verified Skyrim 1.6.1170 calculation layout.</strong> It is unavailable on 1.5.97, and changes from other plugins can prevent validation. Missing, stale or invalid readings pause decisions; the mode does not silently fall back to fixed compensation. Exclusion changes only this mod&#x27;s automatic decision input, preserving the game&#x27;s original lighting and stealth values. Manual lighting and the separate fixed-compensation mode remain available.<br>
+<br>
+<strong>Custom followers</strong> need Skyrim&#x27;s player-teammate flag for automatic recognition. Ashe – Crystal Heart was recognized in user testing; other custom followers are not individually certified. Use the selected NPC list when automatic recognition is unavailable.<br>
+<br>
+<strong>Direct CS testing covers Jiaye build 0516.</strong> Users have reported successful use with other versions, but those builds have not been individually verified. ENB is not yet validated.<br>
+<br>
+<strong>Face lights can affect sneak detection.</strong> By default, player sneaking immediately hides both player and teammate face lights, including selected or dialogue lighting on those teammates. This takes priority over automatic darkness control. Standing restores eligible lights without changing roster switches. Non-teammate NPC lights remain independent and may still contribute to detection.<br>
+<br>
+Lights are shadowless point lights, not skin-only lighting, and can also illuminate nearby objects. Actors need a standard head node. Dialogue detection uses Skyrim&#x27;s standard dialogue menu and speaker; replacement dialogue systems may need separate support. Automatic lighting of all nearby NPCs is not included.<br>
+<br>
+Death-state, missing-head and model-change safeguards clean up invalid lights. Player decapitation could not be reproduced during testing and remains unverified; these guards are not a guarantee against every engine or mod-related death crash.<br>
+<br>
+<span class="size4"><span style="color:#C9AA72"><strong>Translations</strong></span></span><br>
+Includes <strong>English and Simplified Chinese</strong>. To create a translation, copy <strong>SKSE/Plugins/FaceLighting/Languages/en.ini</strong> to a language code such as <strong>fr.ini</strong>. Save as UTF-8, set <strong>Name</strong> under <strong>[Language]</strong>, and translate only the values under <strong>[Strings]</strong>, keeping keys unchanged.<br>
+<br>
+Restart the game, select your language in General, and save. Missing text falls back to English; sidebar names update after restarting. Your menu font must support the language.<br>
+<br>
+Share only your language file with its folder structure. No recompilation required. Full instructions: <a href="https://github.com/BlackMesa79/Face-Lighting-SKSE/blob/main/docs/LOCALIZATION.md">Translation guide on GitHub</a>.<br>
+<br>
+<span class="size4"><span style="color:#C9AA72"><strong>Open source &amp; permissions</strong></span></span><br>
+<strong>Copyright (C) 2026 BlackMesa79.</strong> Face Lighting SKSE is free software distributed under <strong>GPL-3.0</strong>. Modification and redistribution are permitted under the terms of that license.<br>
+<br>
+<a href="https://github.com/BlackMesa79/Face-Lighting-SKSE"><strong>View the source on GitHub</strong></a>  |  <a href="https://www.gnu.org/licenses/gpl-3.0.html">Read the full GPL-3.0 license</a><br>
+<br>
+The software is provided <strong>without any warranty</strong>, including implied warranties of merchantability or fitness for a particular purpose. Retain applicable copyright and license notices, and follow GPL-3.0 when distributing modified versions. Third-party components retain their respective notices.<br>
+<br>
+<span class="size2">The GitHub main branch may contain ongoing development. Use the source matching your installed release when reporting or investigating issues.</span><br>
+<br>
+<span class="size4"><span style="color:#C9AA72"><strong>Feedback &amp; credits</strong></span></span><br>
+When reporting an issue, include your game/SKSE version, CS build if used, reproduction steps, and <strong>FaceLighting.log</strong>. Diagnostic controls are not shown in the release menu. If requested for troubleshooting, set DebugLogging=1, LightDiagnostics=1 or ExclusionDiagnostics=1 in the INI and restart; return them to 0 afterwards. Add a crash log for crashes.<br>
+<br>
+Thanks to the SKSE, CommonLib, Address Library, SKSE Menu Framework, and MinHook/HDE contributors. Color-temperature approximation is based on <a href="https://tannerhelland.com/2012/09/18/convert-temperature-rgb-algorithm-code.html">Tanner Helland&#x27;s work</a>.<br>
+<br>
+<span class="size2">Developed with AI assistance and refined through hands-on testing. The cover is vector promotional artwork, not an in-game screenshot.</span><br>
+</main></html>

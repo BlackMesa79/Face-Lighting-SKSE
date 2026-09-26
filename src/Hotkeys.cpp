@@ -4,10 +4,10 @@
 #include "Settings.h"
 #include "ConfigMenu.h"
 #include "FaceLight.h"
+#include "SelectedNPCs.h"
 #include <Windows.h>
 
-namespace {
-    bool CanToggle() {
+    bool Hotkeys::CanToggle() {
         DWORD foregroundProcess = 0;
         GetWindowThreadProcessId(GetForegroundWindow(), &foregroundProcess);
         if (foregroundProcess != GetCurrentProcessId()) return false;
@@ -19,13 +19,14 @@ namespace {
             !ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME) && !ui->IsMenuOpen(RE::MainMenu::MENU_NAME) &&
             controls && controls->GetRuntimeData().textEntryCount == 0;
     }
+namespace {
     class Events final : public RE::BSTEventSink<RE::InputEvent*> {
         RE::BSEventNotifyControl ProcessEvent(RE::InputEvent* const* events,
             RE::BSTEventSource<RE::InputEvent*>*) override {
-            if (!events || !CanToggle()) return RE::BSEventNotifyControl::kContinue;
+            if (!events || !Hotkeys::CanToggle()) return RE::BSEventNotifyControl::kContinue;
             const auto settings = Settings::Get();
             const int key = settings.hotkey;
-            if (key == 0 && settings.gamepadKey == 0) return RE::BSEventNotifyControl::kContinue;
+            if (key == 0 && settings.gamepadKey == 0 && settings.selectedHotkey == 0) return RE::BSEventNotifyControl::kContinue;
             const auto input = RE::BSInputDeviceManager::GetSingleton();
             const auto keyboard = input ? input->GetKeyboard() : nullptr;
 
@@ -52,6 +53,13 @@ namespace {
             for (auto event = *events; event; event = event->next) {
                 const auto button = event->AsButtonEvent();
                 if (!button || !button->IsDown()) continue;
+                // NPC bindings take priority if the user assigns the same player shortcut.
+                if (settings.selectedHotkey != 0 && keyboard && button->GetDevice() == RE::INPUT_DEVICE::kKeyboard &&
+                    button->GetIDCode() == static_cast<unsigned>(settings.selectedHotkey) &&
+                    Hotkeys::MatchesModifier(settings.selectedHotkeyModifier, held)) {
+                    SelectedNPCs::ToggleCrosshairTarget();
+                    break;
+                }
                 const bool keyboardMatch = key != 0 && keyboard && button->GetDevice() == RE::INPUT_DEVICE::kKeyboard &&
                     button->GetIDCode() == static_cast<unsigned>(key) && Hotkeys::MatchesModifier(settings.hotkeyModifier, held);
                 const bool padMatch = input && input->IsGamepadConnected() && button->GetDevice() == RE::INPUT_DEVICE::kGamepad &&
@@ -59,7 +67,7 @@ namespace {
                         SKSE::InputMap::GamepadMaskToKeycode(button->GetIDCode()), padModifierHeld);
                 if (keyboardMatch || padMatch) {
                     if (const auto tasks = SKSE::GetTaskInterface()) tasks->AddTask([] {
-                        if (!CanToggle()) return;
+                        if (!Hotkeys::CanToggle()) return;
                         auto values = Settings::Get();
                         values.enabled = !values.enabled;
                         if (Settings::Save(values)) FaceLight::RequestUpdate();

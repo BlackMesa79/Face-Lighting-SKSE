@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2560" height="1440" viewBox="0 0 2560 1440">
+<title>Face Lighting SKSE</title><desc>Clean vector promotional cover, player and NPC face lighting.</desc>
+<rect width="2560" height="1440" fill="#11191b"/>
+<g font-family="Segoe UI, Arial, sans-serif">
+<text x="168" y="390" fill="#b4bdbd" font-size="37" letter-spacing="13">SKYRIM SPECIAL EDITION</text>
+<text x="154" y="650" fill="#f4f1e8" font-size="244" font-weight="700" letter-spacing="-6">FACE</text>
+<text x="154" y="899" fill="#f4f1e8" font-size="244" font-weight="700" letter-spacing="-6">LIGHTING</text>
+<text x="170" y="1020" fill="#aeb9b9" font-size="47">Player, NPC &amp; follower lighting.</text>
+</g>
+<g transform="translate(1640 330)" fill="none" stroke="#edece3" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+<!-- Drawn as independent Bezier paths, no raster source or texture. -->
+<path d="M399 95 C465 61 548 87 588 133 C664 157 716 224 713 302 C711 352 736 406 711 461 C704 482 685 500 667 513"/>
+<path d="M399 95 C359 86 321 112 318 157 C294 174 284 199 278 223 L255 265 Q273 268 271 286 C265 309 239 330 221 344 Q210 355 226 367 L241 381 L229 404 L241 414 Q225 433 229 453 C231 474 254 487 287 488 L331 490 C364 511 373 552 370 595 Q369 629 352 661"/>
+<path d="M328 490 C389 486 462 487 501 472 Q529 459 546 431"/>
+<path d="M397 99 C365 110 346 132 342 156 C397 134 447 144 489 175 C538 211 564 239 627 258"/>
+<path d="M349 159 C388 148 428 170 456 215 C487 267 498 318 537 347"/>
+<path d="M470 238 C518 286 576 301 604 336"/>
+<path d="M552 357 C584 330 619 346 613 381 C609 410 585 428 558 426"/>
+<path d="M563 368 Q588 355 586 382"/>
+<path d="M311 270 C340 262 369 267 392 287"/>
+<path d="M322 303 Q347 286 370 307"/>
+<path d="M244 399 Q262 395 287 407"/>
+<path d="M242 422 L269 422"/>
+<path d="M595 462 C583 527 598 593 652 638"/>
+<path d="M669 398 C646 446 662 478 647 516 Q636 543 628 554"/>
+</g>
+<g stroke="#d5af6c" stroke-width="7" fill="none" stroke-linecap="round">
+<circle cx="1745" cy="484" r="37"/>
+<path d="M1808 503 L1902 550 M1797 542 L1863 621 M1768 554 L1811 662"/>
+<path d="M1861 674 Q1850 685 1866 697 L1881 711 L1869 734"/>
+</g>
+</svg>

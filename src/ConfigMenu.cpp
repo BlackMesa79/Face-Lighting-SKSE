@@ -10,6 +10,8 @@
 #include "SKSEMenuFramework.h"
 #include "MenuStyle.h"
 #include "SelectedNPCs.h"
+#include "Followers.h"
+#include "Notifications.h"
 
 namespace {
     std::atomic<bool> menuOpen = false;
@@ -39,9 +41,11 @@ namespace {
         const auto view = SelectedNPCs::Snapshot();
         MenuStyle::Heading(tr(Localization::rosterTitle));
         ImGuiMCP::TextWrapped("%s", tr(Localization::rosterHelp));
+        const auto feedback = Notifications::Snapshot();
+        if (!feedback.empty()) ImGuiMCP::TextWrapped("%s", feedback.c_str());
         ImGuiMCP::TextUnformatted(std::format("{} / {}", view.rows.size(), SelectedNPCs::limit).c_str());
         const auto target = [&](bool console, const std::string& name) {
-            ImGuiMCP::BeginDisabled(!view.active || name.empty() || view.rows.size() >= SelectedNPCs::limit);
+            ImGuiMCP::BeginDisabled(!view.active);
             if (ImGuiMCP::Button(tr(console ? Localization::addConsole : Localization::addCrosshair))) SelectedNPCs::AddTarget(console);
             ImGuiMCP::EndDisabled();
             ImGuiMCP::SameLine();
@@ -95,17 +99,34 @@ namespace {
         }
         if (page == Page::basic) {
             MenuStyle::Heading(tr(Localization::sectionCompatibility));
-            const char* modes[] = {tr(Localization::modeAuto), tr(Localization::modeManualEnable), tr(Localization::modeDisabled)};
-
-            changed |= ImGuiMCP::Combo(tr(Localization::csMode), &draft.csMode, modes, 3);
+            bool csEnabled = draft.csMode != 2;
+            if (ImGuiMCP::Checkbox(tr(Localization::csMode), &csEnabled)) {
+                draft.csMode = csEnabled ? 1 : 2;
+                changed = true;
+            }
             ImGuiMCP::TextWrapped("%s", tr(Localization::csModeHelp));
             ImGuiMCP::TextUnformatted(CSLighting::Diagnostics(draft.language).c_str());
             ImGuiMCP::TextWrapped("%s", tr(Localization::languageHelp));
-            changed |= ImGuiMCP::Checkbox(tr(Localization::debug), &draft.debugLogging);
+            changed |= ImGuiMCP::Checkbox(tr(Localization::rosterNotifications), &draft.rosterNotifications);
             ImGuiMCP::TextUnformatted(CSLighting::Status(draft.language, draft.csMode));
             changed |= ImGuiMCP::Checkbox(tr(Localization::globalLinear), &draft.csGlobalLinear);
             ImGuiMCP::TextWrapped("%s", tr(Localization::globalLinearHelp));
             ImGuiMCP::TextWrapped("%s", tr(Localization::linearHelp));
+            MenuStyle::Heading(tr(Localization::ambientTitle));
+            const char* ambientModes[]{tr(Localization::ambientDisabled), tr(Localization::ambientAutomatic), tr(Localization::ambientFiltered)};
+            int ambientIndex = draft.ambientMode == 3 ? 2 : draft.ambientMode == 2 ? 1 : 0;
+            if (ImGuiMCP::Combo(tr(Localization::ambientMode), &ambientIndex, ambientModes, 3)) {
+                constexpr int values[]{0, 2, 3};
+                draft.ambientMode = values[ambientIndex]; changed = true;
+            }
+            ImGuiMCP::TextWrapped("%s", tr(Localization::ambientHelp));
+            if (draft.ambientMode != 0) {
+                if (draft.ambientMode != 3) changed |= ImGuiMCP::SliderFloat(tr(Localization::ambientCompensation), &draft.ambientCompensation, 0.0f, 1000.0f, "%.1f");
+                changed |= ImGuiMCP::SliderFloat(tr(Localization::ambientLow), &draft.ambientOnThreshold, 0.0f, 999.0f, "%.1f");
+                changed |= ImGuiMCP::SliderFloat(tr(Localization::ambientHigh), &draft.ambientOffThreshold, draft.ambientOnThreshold + 1.0f, 1000.0f, "%.1f");
+                changed |= ImGuiMCP::SliderFloat(tr(Localization::ambientDelay), &draft.ambientDelay, 0.5f, 10.0f, "%.1f");
+            }
+
         }
         if (page == Page::player) {
             if (MenuStyle::Section(tr(Localization::sectionKeys), false)) {
@@ -153,6 +174,12 @@ namespace {
             ImGuiMCP::TextWrapped("%s", tr(Localization::padHelp));
             }
             if (MenuStyle::Section(tr(Localization::sectionBehavior))) {
+            changed |= ImGuiMCP::Checkbox(tr(Localization::playerTransition), &draft.playerTransition);
+            if (draft.playerTransition)
+                changed |= ImGuiMCP::SliderFloat(tr(Localization::playerDuration), &draft.playerDuration, 0.0f, 3.0f, "%.2f");
+            ImGuiMCP::TextWrapped("%s", tr(Localization::playerTransitionHelp));
+            changed |= ImGuiMCP::Checkbox(tr(Localization::firstPersonLight), &draft.firstPersonLight);
+            ImGuiMCP::TextWrapped("%s", tr(Localization::firstPersonHelp));
             changed |= ImGuiMCP::Checkbox(tr(Localization::sneakHide), &draft.hideWhileSneaking);
             ImGuiMCP::TextWrapped("%s", tr(Localization::sneakHelp));
 
@@ -201,20 +228,58 @@ namespace {
             }
             }
         if (page == Page::npc) {
-        static bool selectedPanel = false;
-        if (ImGuiMCP::Button(tr(Localization::dialogueTitle))) selectedPanel = false;
+        static int npcPanel = 0;
+        if (ImGuiMCP::Button(tr(Localization::dialogueTitle))) npcPanel = 0;
         ImGuiMCP::SameLine();
-        if (ImGuiMCP::Button(tr(Localization::selectedTitle))) selectedPanel = true;
-        MenuStyle::Heading(tr(selectedPanel ? Localization::selectedTitle : Localization::dialogueTitle));
+        if (ImGuiMCP::Button(tr(Localization::selectedTitle))) npcPanel = 1;
+        ImGuiMCP::SameLine();
+        if (ImGuiMCP::Button(tr(Localization::followerTitle))) npcPanel = 2;
+        const bool selectedPanel = npcPanel == 1, followerPanel = npcPanel == 2;
+        MenuStyle::Heading(tr(followerPanel ? Localization::followerTitle : selectedPanel ? Localization::selectedTitle : Localization::dialogueTitle));
+        if (followerPanel) {
+            ImGuiMCP::TextWrapped("%s", tr(Localization::followerHelp));
+            const auto followers = Followers::Snapshot();
+            ImGuiMCP::TextUnformatted(std::format("{}: {}", tr(Localization::rosterTitle), followers.size()).c_str());
+            for (const auto& row : followers) {
+                ImGuiMCP::PushID(static_cast<int>(row.id));
+                const auto label = std::format("{} [{:08X}] - {}", row.name, row.id,
+                    tr(row.loaded ? Localization::npcLoaded : Localization::npcUnloaded));
+                ImGuiMCP::TextUnformatted(label.c_str());
+                bool enabled = row.enabled;
+                if (ImGuiMCP::Checkbox(tr(Localization::followerRowEnabled), &enabled)) Followers::SetEnabled(row.id, enabled);
+                ImGuiMCP::PopID();
+            }
+            ImGuiMCP::TextWrapped("%s", tr(Localization::followerRowHelp));
+            const auto feedback = Notifications::Snapshot();
+            if (!feedback.empty()) ImGuiMCP::TextWrapped("%s", feedback.c_str());
+        }
         if (selectedPanel) {
+            ImGuiMCP::PushID("selectedShortcut");
+            int keyIndex = Hotkeys::Index(draft.selectedHotkey);
+            const auto custom = std::format("{} ({})", tr(Localization::customKey), draft.selectedHotkey);
+            constexpr int knownKeyCount = static_cast<int>(Hotkeys::codes.size());
+            std::array<const char*, Hotkeys::codes.size() + 1> keys{};
+            std::copy(std::begin(Hotkeys::names), std::end(Hotkeys::names), keys.begin());
+            keys[0] = tr(Localization::keyOff);
+            keys[knownKeyCount] = custom.c_str();
+            const int count = knownKeyCount + (keyIndex == knownKeyCount ? 1 : 0);
+            if (ImGuiMCP::Combo(tr(Localization::selectedHotkey), &keyIndex, keys.data(), count)) {
+                draft.selectedHotkey = Hotkeys::FromIndex(keyIndex, draft.selectedHotkey);
+                changed = true;
+            }
+            ImGuiMCP::TextWrapped("%s", tr(Localization::selectedHotkeyHelp));
+            const char* modifiers[] = {tr(Localization::noModifier), tr(Localization::shiftKey), tr(Localization::ctrlKey), tr(Localization::altKey)};
+            changed |= ImGuiMCP::Combo(tr(Localization::modifier), &draft.selectedHotkeyModifier, modifiers, 4);
+            ImGuiMCP::TextWrapped("%s", tr(Localization::modifierHelp));
+            ImGuiMCP::PopID();
             RenderRoster();
             ImGuiMCP::TextWrapped("%s", tr(Localization::selectedHelp));
         }
-        ImGuiMCP::PushID(selectedPanel ? "SelectedSettings" : "DialogueSettings");
-        auto& d = selectedPanel ? draft.selected : draft.dialogue;
+        ImGuiMCP::PushID(followerPanel ? "FollowerSettings" : selectedPanel ? "SelectedSettings" : "DialogueSettings");
+        auto& d = followerPanel ? draft.follower : selectedPanel ? draft.selected : draft.dialogue;
         if (MenuStyle::Section(tr(Localization::sectionBehavior))) {
 
-        changed |= ImGuiMCP::Checkbox(tr(selectedPanel ? Localization::selectedEnabled : Localization::dialogueEnabled), &d.enabled);
+        changed |= ImGuiMCP::Checkbox(tr(followerPanel ? Localization::followerEnabled : selectedPanel ? Localization::selectedEnabled : Localization::dialogueEnabled), &d.enabled);
         changed |= ImGuiMCP::Checkbox(tr(Localization::dialogueTransition), &d.transition);
         if (d.transition) changed |= ImGuiMCP::SliderFloat(tr(Localization::dialogueDuration), &d.duration, 0.0f, 3.0f, "%.2f");
         }
@@ -237,7 +302,7 @@ namespace {
                 ImGuiMCP::TextWrapped("%s", tr(Localization::manualRangeHelp));
             }
             const auto normalized = Settings::Normalize(draft);
-            const auto& clean = selectedPanel ? normalized.selected : normalized.dialogue;
+            const auto& clean = followerPanel ? normalized.follower : selectedPanel ? normalized.selected : normalized.dialogue;
             const auto radius = CSLighting::InverseRange(CSLighting::InverseFade(clean.intensity), clean.manualRange, clean.inverseRadius).radius;
             const auto text = std::format("{}{:.1f}", tr(Localization::range), d.intensity > 0 ? radius : 0.0f);
             ImGuiMCP::TextUnformatted(text.c_str());
@@ -313,10 +378,6 @@ void ConfigMenu::Register() {
     registered = true;
     SKSE::log::info("FaceLighting configuration menu registered");
 }
-
-
-
-
 
 
 
