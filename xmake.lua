@@ -109,7 +109,7 @@ target("ActorRuntimeTests")
     set_kind("binary")
     set_default(false)
     add_includedirs("include")
-    add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
+    add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN", "ENABLE_COMMONLIBSSE_TESTING")
     add_deps("commonlibsse-ng")
     add_files("tests/ActorRuntimeTests.cpp")
 

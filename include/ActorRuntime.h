@@ -11,7 +11,9 @@ namespace ActorRuntime {
     }
     inline bool SafeForLight(RE::Actor* actor) {
         if (!actor || actor->IsDeleted() || actor->IsDisabled()) return false;
-        const auto life = actor->GetLifeState();
+        // ActorState's base offset varies by runtime; a C++ base upcast uses
+        // the build-time layout and can read unrelated memory in the game.
+        const auto life = actor->AsActorState()->GetLifeState();
         return life != RE::ACTOR_LIFE_STATE::kDying && life != RE::ACTOR_LIFE_STATE::kDead &&
             life != RE::ACTOR_LIFE_STATE::kRecycle && !IsDead(actor);
     }

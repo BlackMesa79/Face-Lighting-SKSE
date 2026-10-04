@@ -4,6 +4,7 @@
 #include <array>
 #include <iostream>
 #include <stdexcept>
+#include <cstring>
 
 namespace {
     bool dead = false;
@@ -17,27 +18,46 @@ namespace {
 }
 
 int main() {
-    // ABI fixture: use the SE/AE engine's vtable layout without loading the game.
-    std::array<std::uintptr_t, 0x200> vtable;
-    vtable.fill(reinterpret_cast<std::uintptr_t>(&Unexpected));
-    vtable[0x99] = reinterpret_cast<std::uintptr_t>(&Dead);
-    alignas(RE::Actor) std::array<std::byte, sizeof(RE::Actor)> storage{};
-    *reinterpret_cast<std::uintptr_t**>(storage.data()) = vtable.data();
-    const auto actor = reinterpret_cast<const RE::Actor*>(storage.data());
-    if (Query(actor) || wrongSlot) {
-        std::cerr << "Living NPC rejected: IsDead did not dispatch to SE/AE slot 0x99.\n";
-        return 1;
+    struct Layout { REL::Version version; std::size_t state; };
+    const Layout layouts[] = {
+        {{1, 5, 97, 0}, 0xB8}, {{1, 6, 353, 0}, 0xB8},
+        {{1, 6, 629, 0}, 0xC0}, {{1, 6, 1170, 0}, 0xC0}
+    };
+    for (const auto& layout : layouts) {
+        if (!REL::Module::mock(layout.version)) return 1;
+        std::array<std::uintptr_t, 0x200> vtable;
+        vtable.fill(reinterpret_cast<std::uintptr_t>(&Unexpected));
+        vtable[0x99] = reinterpret_cast<std::uintptr_t>(&Dead);
+        alignas(RE::Actor) std::array<std::byte, sizeof(RE::Actor)> storage{};
+        *reinterpret_cast<std::uintptr_t**>(storage.data()) = vtable.data();
+        auto* actor = reinterpret_cast<RE::Actor*>(storage.data());
+        // Write native byte offsets, never the same C++ base fields being tested.
+        const auto writeLife = [&](std::size_t offset, std::uint32_t life) {
+            const std::uint32_t flags = life << 21;
+            std::memcpy(storage.data() + offset, &flags, sizeof(flags));
+        };
+        dead = false; wrongSlot = false;
+        if (Query(actor) || wrongSlot || ActorRuntime::SafeForLight(nullptr)) return 1;
+        if (reinterpret_cast<const std::byte*>(actor->AsActorState()) != storage.data() + layout.state) return 1;
+        // Poison both the old erroneous address and the other runtime's address.
+        // Living actors must still pass even when those bytes look dead.
+        for (const auto poison : {1u, 2u, 5u, 15u}) {
+            writeLife(0xA8, poison);
+            writeLife(layout.state == 0xB8 ? 0xC8 : 0xC0, poison);
+            writeLife(layout.state + 8, 0);
+            if (!ActorRuntime::SafeForLight(actor)) {
+                std::cerr << "Living actor rejected for native offset " << layout.state << '\n';
+                return 1;
+            }
+        }
+        writeLife(0xA8, 0);
+        for (const auto life : {1u, 2u, 5u}) {
+            writeLife(layout.state + 8, life);
+            if (ActorRuntime::SafeForLight(actor)) return 1;
+        }
+        writeLife(layout.state + 8, 0);
+        dead = true;
+        if (!Query(actor) || ActorRuntime::SafeForLight(actor) || wrongSlot) return 1;
     }
-    dead = true;
-    if (!Query(actor) || wrongSlot) return 1;
-    auto* mutableActor = const_cast<RE::Actor*>(actor);
-    if (ActorRuntime::SafeForLight(nullptr) || ActorRuntime::SafeForLight(mutableActor)) return 1;
-    dead = false;
-    for (auto life : {RE::ACTOR_LIFE_STATE::kDying, RE::ACTOR_LIFE_STATE::kDead, RE::ACTOR_LIFE_STATE::kRecycle}) {
-        mutableActor->actorState1.lifeState = life;
-        if (ActorRuntime::SafeForLight(mutableActor)) return 1;
-    }
-    mutableActor->actorState1.lifeState = RE::ACTOR_LIFE_STATE::kAlive;
-    if (!ActorRuntime::SafeForLight(mutableActor)) return 1;
-    std::cout << "Actor death check dispatches to SE/AE slot 0x99 for living and dead NPCs.\n";
+    std::cout << "SE 1.5.97, AE 1.6.353/629/1170 native life-state layouts, poisoned offsets and death dispatch passed.\n";
 }
