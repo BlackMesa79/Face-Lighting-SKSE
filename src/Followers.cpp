@@ -109,6 +109,18 @@ void Followers::RevertPreferences() {
     preferences.disabled.clear(); announced.clear();
     members.clear(); rows.clear(); nextScan = {};
 }
+bool Followers::PersonalEnabled(RE::FormID id) {
+    std::scoped_lock lock(viewMutex);
+    return preferences.Enabled(id);
+}
+bool Followers::SetPersonalNow(RE::FormID id, bool enabled) {
+    std::scoped_lock lock(viewMutex);
+    auto updated = preferences;
+    if (!updated.Set(id, enabled)) return false;
+    preferences.disabled.swap(updated.disabled);
+    for (auto& row : rows) if (row.id == id) row.enabled = enabled;
+    return true;
+}
 void Followers::Save(SKSE::SerializationInterface* api) {
     std::scoped_lock lock(viewMutex);
     if (!api->WriteRecord(preferencesRecord, 1, preferences.disabled.data(), static_cast<std::uint32_t>(preferences.disabled.size() * sizeof(RE::FormID))))

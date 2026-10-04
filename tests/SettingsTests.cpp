@@ -22,6 +22,7 @@ int main() {
         std::filesystem::create_directories(testRoot / "Data/SKSE/Plugins");
         std::filesystem::current_path(testRoot);
         const Settings::Values defaults;
+        Check(defaults.npcLightLimit == 4, "NPC budget preserves previous default");
         Settings::Values requested;
         auto legacyCS = defaults;
         legacyCS.csMode = 0;
@@ -72,11 +73,18 @@ int main() {
         requested.exclusionDiagnostics = true;
         requested.playerTransition = false;
         requested.playerDuration = 1.25f;
+        requested.dialogueAmbientMode = 3;
+        requested.dialogueAmbientCompensation = 63.5f;
+        requested.dialogueAmbientOnThreshold = 25;
+        requested.dialogueAmbientOffThreshold = 60;
+        requested.dialogueAmbientDelay = 1.5f;
+        requested.ambientPollMode = 2;
         requested.ambientMode = 3;
         requested.ambientCompensation = 83.5f;
         requested.ambientOnThreshold = 28;
         requested.ambientOffThreshold = 55;
         requested.ambientDelay = 3;
+        requested.npcLightLimit = 12;
         requested.rosterNotifications = false;
         requested.debugLogging = true;
         requested.csInverseSquare = true;
@@ -123,6 +131,26 @@ int main() {
         Check(Settings::Get() == legacy, "0.1 configuration gains lighting defaults");
         Check(Settings::Get().follower.enabled && !Settings::Get().firstPersonLight,
             "legacy settings enable followers but keep first-person opt-in");
+        auto invalidBudget = defaults;
+        invalidBudget.npcLightLimit = 0;
+        Check(Settings::Normalize(invalidBudget).npcLightLimit == 1, "NPC budget clamps low bound");
+        invalidBudget.npcLightLimit = 100;
+        Check(Settings::Normalize(invalidBudget).npcLightLimit == 32, "NPC budget clamps high bound");
+        Write("[General]\nNPCLightLimit=32\n");
+        Settings::Load();
+        Check(Settings::Get().npcLightLimit == 32, "maximum NPC budget loads");
+        Write("[General]\nNPCLightLimit=-5\n");
+        Settings::Load();
+        Check(Settings::Get().npcLightLimit == 1, "negative NPC budget clamped on load");
+        Write("[General]\nNPCLightLimit=100\n");
+        Settings::Load();
+        Check(Settings::Get().npcLightLimit == 32, "oversized NPC budget clamped on load");
+        for (const auto text : {"[General]\nNPCLightLimit=abc\n", "[General]\nNPCLightLimit=5oops\n",
+            "[General]\nNPCLightLimit=2.5\n", "[General]\nNPCLightLimit=999999999999999999999\n"}) {
+            Write(text); Settings::Load();
+            Check(Settings::Get().npcLightLimit == 4, "malformed NPC budget uses default");
+        }
+        Write("[General]\nDebugLogging=1\n"); Settings::Load();
         auto invalidFollower = defaults;
         invalidFollower.follower.intensity = std::numeric_limits<float>::quiet_NaN();
         invalidFollower.follower.radius = -10;
@@ -176,6 +204,43 @@ int main() {
         Check(Settings::GetActive().radius == defaults.radius && Settings::GetActive().offsetY == defaults.offsetY &&
             Settings::GetActive().intensity == 0, "preview input sanitized");
 
+        Check(defaults.ambientPollMode == 0, "legacy configuration uses performance polling");
+        auto invalidPolling = defaults;
+        for (int value : {-1, 3, 100}) {
+            invalidPolling.ambientPollMode = value;
+            Check(Settings::Normalize(invalidPolling).ambientPollMode == 0, "invalid polling option defaults to performance");
+        }
+        for (const auto entry : {"[General]\nAmbientPollMode=1\n", "[General]\nAmbientPollMode=2\n"}) {
+            Write(entry); Settings::Load();
+            Check(Settings::Get().ambientPollMode != 0, "valid polling selection loads");
+        }
+        for (const auto entry : {"[General]\nAmbientPollMode=3\n", "[General]\nAmbientPollMode=bad\n",
+            "[General]\nAmbientPollMode=1.5\n"}) {
+            Write(entry); Settings::Load();
+            Check(Settings::Get().ambientPollMode == 0, "invalid polling INI uses default");
+        }
+        auto invalidDialogueAmbient = defaults;
+        invalidDialogueAmbient.dialogueAmbientMode = 1;
+        invalidDialogueAmbient.dialogueAmbientCompensation = std::numeric_limits<float>::infinity();
+        invalidDialogueAmbient.dialogueAmbientOnThreshold = 9999;
+        invalidDialogueAmbient.dialogueAmbientOffThreshold = -10;
+        invalidDialogueAmbient.dialogueAmbientDelay = 99;
+        const auto cleanDialogueAmbient = Settings::Normalize(invalidDialogueAmbient);
+        Check(cleanDialogueAmbient.dialogueAmbientMode == 0 && cleanDialogueAmbient.dialogueAmbientCompensation == 80 &&
+            cleanDialogueAmbient.dialogueAmbientOnThreshold == 999 && cleanDialogueAmbient.dialogueAmbientOffThreshold == 1000 &&
+            cleanDialogueAmbient.dialogueAmbientDelay == 10, "dialogue ambient configuration normalized independently");
+        Write("[General]\nDialogueAmbientMode=3\nDialogueAmbientOnThreshold=22\nDialogueAmbientOffThreshold=61\nDialogueAmbientDelay=1.5\n");
+        Settings::Load();
+        Check(Settings::Get().dialogueAmbientMode == 3 && Settings::Get().ambientMode == 0 && !Settings::Get().enabled &&
+            Settings::Get().dialogueAmbientOnThreshold == 22 && Settings::Get().dialogueAmbientOffThreshold == 61 &&
+            Settings::Get().dialogueAmbientDelay == 1.5f, "dialogue automatic settings work with player automatic control disabled");
+        Write("[General]\nDialogueAmbientMode=garbage\nDialogueAmbientCompensation=nan\n");
+        Settings::Load();
+        Check(Settings::Get() == defaults, "malformed dialogue ambient settings use defaults");
+
+        // Restore a non-default saved state before verifying failure rollback.
+        Check(Settings::Save(clamped), "restore state for write failure checks");
+        Settings::Preview(invalid);
         // Guaranteed write failure: the INI parent is a regular file.
         auto ambientInvalid = defaults;
         ambientInvalid.playerDuration = std::numeric_limits<float>::infinity();

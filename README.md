@@ -11,14 +11,20 @@ No ESP or Papyrus scripts are required.
 
 0.9 adds selected NPC lists, automatic follower lighting, optional first-person player lighting, automatic lighting in dark environments, and a redesigned configuration menu.
 
+Version 0.9.4 adds a public plugin API, a configurable simultaneous NPC light limit, optional environment-based dialogue lighting, and three shared environment-check frequency presets. Player automatic lighting controls now reside on the Player page with shorter menu help. Live exclusion remains restricted to the verified 1.6.1170 layout.
+
+See [Changelog](CHANGELOG.md) for this release and the backfilled 0.9.2 / 0.9.3 records.
+
 ## Features
 
 - Separate settings for player, dialogue NPC, selected NPC and follower lighting: intensity, position, radius/range, head rotation and 2000–10000 K color temperature.
 - Aim at an NPC and press **Shift+L** to add and enable its light; press again to toggle. Crosshair and console targets can also be added from the menu. Up to 32 selected NPCs per save.
-- Automatically light recruited player teammates, with individual follower switches. Up to 32 loaded followers are lit, nearest first. Custom followers need the player-teammate flag; use the selected list otherwise. Ashe – Crystal Heart was recognized in user testing; this is not a guarantee for all custom followers.
-- A single light per NPC, with dialogue taking priority over selected and follower settings.
+- Automatically light recruited player teammates, with individual follower switches. Loaded followers share a configurable simultaneous light budget with selected NPCs (1-32, default 4). Custom followers need the player-teammate flag; use the selected list otherwise. Ashe – Crystal Heart was recognized in user testing; this is not a guarantee for all custom followers.
+- A single light per NPC, with dialogue first, followers next and selected NPCs last. The NPC menu provides a shared simultaneous light limit of 1-32 (default 4), separate from player lighting and the 32-entry selected roster. During dialogue, only the player and current speaker lights remain.
 - Optional first-person player light; smooth player transitions default to 0.2 seconds.
 - Optional dark-environment player control: fixed compensation or live exclusion of this mod's player/NPC lights. Live exclusion requires the verified **Skyrim 1.6.1170 code layout**, saving settings and restarting. It is not available on 1.5.97. Unknown or stale readings pause decisions; there is no automatic fallback to compensation.
+- Optional dialogue ambient control has independent mode, thresholds and delay (disabled by default), using the player-position lighting sample even when player automatic control is off. It keeps bright conversations off, fades on after sustained darkness, and prevents follower/selected sources from bypassing the decision. See [usage and sampling limits](docs/dialogue-ambient-control.md). This is not a direct NPC face/sunlight measurement.
+- Shared environment-check frequency dropdown: Performance (1 second, default), Balanced (0.5 seconds), Responsive (0.2 seconds). This throttles cached brightness reads and threshold decisions while light fades and safety checks keep their frame cadence. It does not force engine light-cache updates; live exclusion capture still follows the engine queries.
 - Dark control uses measured lighting, not time of day. Default thresholds: below 30 on, above 50 off, sustained for 2 seconds; transitions and their settling period temporarily suspend decisions.
 - Player **L** hotkey, optional keyboard modifiers and independent controller bindings.
 - Sneak hiding immediately suppresses player and teammate lights, including selected/dialogue sources on teammates, ahead of automatic control. Other NPCs remain independent.
@@ -37,13 +43,15 @@ User testing covered selected NPCs across characters and saves, followers, dark-
 
 ## Installation and upgrade
 
+Version 0.9.3 fixes runtime-dependent actor life-state detection that could reject living NPCs or disable face lights. Thanks to [jinx60](https://next.nexusmods.com/profile/jinx60) for discovering and helping diagnose the issue. The fix uses the SE/AE runtime accessor and has native-layout regression coverage; full gameplay validation across both runtimes remains separate.
+
 Install the archive with your mod manager and launch through SKSE. No ESP or Papyrus scripts. Preserve your existing INI; if using Mod Organizer, check its overwrite folder for the effective settings. New options use defaults when absent.
 
 Starting with 0.9.1, installation archives do not include an initial `FaceLighting.ini`. Missing settings use built-in defaults; saving settings in the menu creates the file. The repository's INI is a reference only.
 
-Version 0.9.1 adds conservative light priority protection: dialogue temporarily suspends other NPC lights; outside dialogue, at most four secondary lights remain, with selected NPCs ahead of followers. Nearby secondary lights also yield while the player light exists. Suspended lights recover automatically without changing saved preferences. This reduces competition from this mod, but cannot guarantee visibility against engine or external lighting limits.
+Version 0.9.2 revises light priority protection: outside dialogue, player lighting coexists with up to four secondary NPC lights, with followers ahead of selected NPCs. Player proximity no longer forces other lights off. During dialogue, only player and current speaker lighting are allowed; other NPC lights resume within the budget afterwards without changing saved preferences. Existing user switches and visibility safeguards still apply. This reduces competition from this mod, but cannot guarantee visibility against engine or external lighting limits.
 
-The release defaults leave the player light initially off, first-person lighting off, automatic darkness control off and diagnostics off. Dialogue activation, NPC lighting groups and sneak hiding are enabled. To test automatic control, enable the player master switch and choose a mode in General; live exclusion needs a restart after saving settings.
+The release defaults leave the player light initially off, first-person lighting off, automatic darkness control off and diagnostics off. Dialogue activation, NPC lighting groups and sneak hiding are enabled. To test automatic control, enable the player master switch and choose a mode under Player face light; live exclusion needs a restart after saving settings. Shared environment-check frequency remains under General.
 
 Settings are stored in INI. Selected NPC lists and per-follower preferences are stored in the SKSE co-save when saving the game; preserve the matching `.skse` file with your saves.
 
@@ -83,7 +91,8 @@ xmake build -a
 $tests = @('SettingsTests', 'LightPlacementTests', 'CSLightingTests',
     'LocalizationTests', 'PlayerDialogueTests', 'NpcLightManagerTests',
     'SelectedNPCRecordTests', 'ActorRuntimeTests', 'FollowerRosterTests',
-    'AmbientPolicyTests', 'LightCallScanTests', 'PlayerTransitionTests', 'ExclusionTotalsTests')
+    'AmbientPolicyTests', 'LightCallScanTests', 'PlayerTransitionTests', 'ExclusionTotalsTests',
+    'PublicAPITests', 'DialogueAmbientTests')
 foreach ($test in $tests) {
     & "./build/windows/x64/releasedbg/$test.exe"
     if ($LASTEXITCODE -ne 0) { throw "$test failed" }
@@ -93,6 +102,15 @@ foreach ($test in $tests) {
 These tests cover configuration, light placement, CS calculations, localization,
 dialogue policy, NPC request management and serialized-record validation.
 They do not replace in-game rendering and SKSE save/load testing.
+
+## Plugin integration
+
+Version 0.9.4 exposes the versioned `FaceLighting_GetAPI` DLL export.
+[FaceLightingAPI.h](include/FaceLightingAPI.h) provides player, target NPC and follower
+controls, caller-owned follower pagination and preference/runtime status queries.
+Discover the optional module with GetModuleHandle/GetProcAddress and invoke callbacks
+on the game thread. See [API contract and examples](docs/public-api.md). Favorite Wheel
+integration was tested successfully by the author; its client is distributed separately.
 
 ## Configuration and translations
 

@@ -188,7 +188,7 @@ namespace {
 void LightExclusionProbe::Install() {
     std::scoped_lock lock(stateMutex);
     const auto settings = Settings::Get();
-    if ((!settings.exclusionDiagnostics && settings.ambientMode != 3) || installed) return;
+    if ((!settings.exclusionDiagnostics && settings.ambientMode != 3 && settings.dialogueAmbientMode != 3) || installed) return;
     // Call-site diagnostics are deliberately restricted to the researched runtime.
     if (REL::Module::get().version() != REL::Version(1, 6, 1170, 0)) {
         status = "unsupported runtime; requires Skyrim 1.6.1170";

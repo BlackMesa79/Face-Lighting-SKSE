@@ -21,6 +21,20 @@ namespace {
         spdlog::set_level(values.debugLogging ? spdlog::level::debug : spdlog::level::info);
     }
 
+    int ReadInt(const char* key, int fallback) {
+        char buffer[128]{};
+        GetPrivateProfileStringA("General", key, "", buffer, sizeof(buffer), path);
+        std::string_view text(buffer);
+        if (text.empty()) return fallback;
+        int result{};
+        const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), result);
+        if (error != std::errc{} || end != text.data() + text.size()) {
+            SKSE::log::warn("Invalid {} value '{}'; using {}", key, text, fallback);
+            return fallback;
+        }
+        return result;
+    }
+
     float ReadFloat(const char* key, float fallback) {
         char buffer[128]{};
         GetPrivateProfileStringA("General", key, "", buffer, sizeof(buffer), path);
@@ -38,6 +52,7 @@ namespace {
 
 Settings::Values Settings::Normalize(Values values) {
     const Values defaults;
+    values.npcLightLimit = std::clamp(values.npcLightLimit, minNpcLightLimit, maxNpcLightLimit);
     if (values.selectedHotkey < 0 || values.selectedHotkey > 255) values.selectedHotkey = 38;
     if (values.selectedHotkeyModifier < 0 || values.selectedHotkeyModifier > 3) values.selectedHotkeyModifier = 1;
     if (values.selectedHotkeyModifier && Hotkeys::ModifierMask(values.selectedHotkey) == (1u << (values.selectedHotkeyModifier - 1)))
@@ -56,7 +71,15 @@ Settings::Values Settings::Normalize(Values values) {
     };
     values.radius = clamp(values.radius, minRadius, maxRadius, defaults.radius);
     values.playerDuration = clamp(values.playerDuration, 0.0f, 3.0f, defaults.playerDuration);
+    if (values.ambientPollMode < 0 || values.ambientPollMode > 2) values.ambientPollMode = 0;
     if (values.ambientMode < 0 || values.ambientMode > 3) values.ambientMode = 0;
+    if (values.dialogueAmbientMode != 0 && values.dialogueAmbientMode != 2 && values.dialogueAmbientMode != 3)
+        values.dialogueAmbientMode = 0;
+    values.dialogueAmbientCompensation = clamp(values.dialogueAmbientCompensation, 0.0f, 1000.0f, defaults.dialogueAmbientCompensation);
+    values.dialogueAmbientOnThreshold = clamp(values.dialogueAmbientOnThreshold, 0.0f, 999.0f, defaults.dialogueAmbientOnThreshold);
+    values.dialogueAmbientOffThreshold = clamp(values.dialogueAmbientOffThreshold, values.dialogueAmbientOnThreshold + 1.0f, 1000.0f,
+        std::max(defaults.dialogueAmbientOffThreshold, values.dialogueAmbientOnThreshold + 1.0f));
+    values.dialogueAmbientDelay = clamp(values.dialogueAmbientDelay, 0.5f, 10.0f, defaults.dialogueAmbientDelay);
     values.ambientCompensation = clamp(values.ambientCompensation, 0.0f, 1000.0f, defaults.ambientCompensation);
     values.ambientOnThreshold = clamp(values.ambientOnThreshold, 0.0f, 999.0f, defaults.ambientOnThreshold);
     values.ambientOffThreshold = clamp(values.ambientOffThreshold, values.ambientOnThreshold + 1.0f, 1000.0f,
@@ -113,6 +136,11 @@ void Settings::Preview(const Values& values) {
 void Settings::ClearPreview() {
     std::scoped_lock lock(settingsMutex);
     preview.reset();
+}
+
+bool Settings::HasPreview() {
+    std::scoped_lock lock(settingsMutex);
+    return preview.has_value();
 }
 
 void Settings::Load() {
@@ -192,11 +220,18 @@ void Settings::Load() {
     values.exclusionDiagnostics = GetPrivateProfileIntA("General", "ExclusionDiagnostics", 0, path) != 0;
     values.playerTransition = GetPrivateProfileIntA("General", "PlayerTransition", 1, path) != 0;
     values.playerDuration = ReadFloat("PlayerDuration", values.playerDuration);
+    values.ambientPollMode = ReadInt("AmbientPollMode", values.ambientPollMode);
     values.ambientMode = GetPrivateProfileIntA("General", "AmbientMode", 0, path);
     values.ambientCompensation = ReadFloat("AmbientCompensation", values.ambientCompensation);
     values.ambientOnThreshold = ReadFloat("AmbientOnThreshold", values.ambientOnThreshold);
     values.ambientOffThreshold = ReadFloat("AmbientOffThreshold", values.ambientOffThreshold);
     values.ambientDelay = ReadFloat("AmbientDelay", values.ambientDelay);
+    values.dialogueAmbientMode = ReadInt("DialogueAmbientMode", values.dialogueAmbientMode);
+    values.dialogueAmbientCompensation = ReadFloat("DialogueAmbientCompensation", values.dialogueAmbientCompensation);
+    values.dialogueAmbientOnThreshold = ReadFloat("DialogueAmbientOnThreshold", values.dialogueAmbientOnThreshold);
+    values.dialogueAmbientOffThreshold = ReadFloat("DialogueAmbientOffThreshold", values.dialogueAmbientOffThreshold);
+    values.dialogueAmbientDelay = ReadFloat("DialogueAmbientDelay", values.dialogueAmbientDelay);
+    values.npcLightLimit = ReadInt("NPCLightLimit", values.npcLightLimit);
     values.rosterNotifications = GetPrivateProfileIntA("General", "RosterNotifications", 1, path) != 0;
     Publish(Normalize(values));
     SKSE::log::info("Settings loaded: enabled={}, radius={}, intensity={}", current.enabled, current.radius, current.intensity);
@@ -285,11 +320,18 @@ bool Settings::Save(const Values& requested) {
     append("ExclusionDiagnostics", values.exclusionDiagnostics ? "1" : "0");
     append("PlayerTransition", values.playerTransition ? "1" : "0");
     append("PlayerDuration", std::to_string(values.playerDuration));
+    append("AmbientPollMode", std::to_string(values.ambientPollMode));
     append("AmbientMode", std::to_string(values.ambientMode));
     append("AmbientCompensation", std::to_string(values.ambientCompensation));
     append("AmbientOnThreshold", std::to_string(values.ambientOnThreshold));
     append("AmbientOffThreshold", std::to_string(values.ambientOffThreshold));
     append("AmbientDelay", std::to_string(values.ambientDelay));
+    append("DialogueAmbientMode", std::to_string(values.dialogueAmbientMode));
+    append("DialogueAmbientCompensation", std::to_string(values.dialogueAmbientCompensation));
+    append("DialogueAmbientOnThreshold", std::to_string(values.dialogueAmbientOnThreshold));
+    append("DialogueAmbientOffThreshold", std::to_string(values.dialogueAmbientOffThreshold));
+    append("DialogueAmbientDelay", std::to_string(values.dialogueAmbientDelay));
+    append("NPCLightLimit", std::to_string(values.npcLightLimit));
     append("RosterNotifications", values.rosterNotifications ? "1" : "0");
     if (!WritePrivateProfileSectionA("General", section.c_str(), path)) {
         preview.reset();

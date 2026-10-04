@@ -1,0 +1,6 @@
+Version 0.9.4
+
+- Added a public API for Favorite Wheel and other SKSE plugins.
+- Added an adjustable simultaneous NPC light limit (1–32, default 4).
+- Added optional environment-based dialogue lighting with independent thresholds.
+- Added three environment-check frequency presets and simplified menu settings.

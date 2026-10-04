@@ -1,5 +1,6 @@
 #include "AmbientPolicy.h"
 #include "AmbientSample.h"
+#include "AmbientPoll.h"
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -94,6 +95,43 @@ int main() {
         Check(!p.on, "resume must rebuild sustained darkness after settling");
         filteredRun(20, 22, false);
         Check(p.on, "fresh darkness after resume eventually enables light");
+        // Simulate frame updates without any position/movement signal. Polling
+        // only advances on its schedule, and each cadence can complete a duration.
+        Check(AmbientPoll::Interval(0) == 1.0 && AmbientPoll::Interval(1) == 0.5 && AmbientPoll::Interval(2) == 0.2,
+            "polling option intervals wrong");
+        for (int mode = 0; mode <= 2; ++mode) {
+            AmbientPoll clock;
+            AmbientPolicy periodic;
+            int evaluations = 0;
+            for (int frame = 0; frame <= 200; ++frame) {
+                const double now = frame * 0.05;
+                if (!clock.Due(now, true, mode)) continue;
+                ++evaluations;
+                periodic.Step(now, 22.0f, false, 0, 30, 50, 2, true, AmbientPoll::MaxDecisionGap(mode));
+            }
+            Check(periodic.on, "scheduled darkness never enabled (normal ticks mistaken for pause)");
+            Check(evaluations <= int(10 / AmbientPoll::Interval(mode)) + 1 && evaluations >= 9 / AmbientPoll::Interval(mode),
+                "poll count not limited to selected frequency");
+            for (int frame = 201; frame <= 400; ++frame) {
+                const double now = frame * 0.05;
+                if (clock.Due(now, true, mode))
+                    periodic.Step(now, 90.0f, false, 0, 30, 50, 2, true, AmbientPoll::MaxDecisionGap(mode));
+            }
+            Check(!periodic.on, "stationary bright sample failed to disable under scheduled cadence");
+            periodic = {};
+            periodic.Step(0, 22.0f, false, 0, 30, 50, 2, true, AmbientPoll::MaxDecisionGap(mode));
+            periodic.Step(10, 22.0f, false, 0, 30, 50, 2, true, AmbientPoll::MaxDecisionGap(mode));
+            Check(!periodic.on && !periodic.pending, "long gap incorrectly completed dark timer");
+        }
+        AmbientPoll clock;
+        Check(clock.Due(0, true) && !clock.Due(0.99, true) && clock.Due(1, true), "one-second cadence wrong");
+        Check(clock.Due(1.1, true, 2) && !clock.Due(1.2, true, 2) && clock.Due(1.31, true, 2),
+            "changed option did not reset schedule");
+        Check(!clock.Due(2, false, 2) && clock.Due(2.01, true, 2), "pause/resume schedule wrong");
+        Check(clock.Due(100, true, 2) && !clock.Due(100, true, 2), "stall caused catch-up burst");
+        Check(clock.Due(0, true, 2), "backwards clock failed to reset schedule");
+        Check(!clock.Due(std::numeric_limits<double>::quiet_NaN(), true) && clock.Due(0, true),
+            "invalid time corrupted schedule");
         std::cout << "Ambient compensation, hysteresis, delays, pause and invalid samples passed.\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

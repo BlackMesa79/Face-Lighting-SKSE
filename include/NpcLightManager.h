@@ -3,10 +3,11 @@
 #include <algorithm>
 #include <cstddef>
 #include <memory>
+#include <limits>
 #include <vector>
 
 // Internal request priorities; these do not enable any target-selection feature.
-enum class NpcLightSource { Nearby, Follower, Selected, Dialogue };
+enum class NpcLightSource { Nearby, Selected, Follower, Dialogue };
 
 // Main-thread only. Each producer renews its requests every frame. Keys must be
 // lifetime-safe actor handles, not raw pointers or reusable FormIDs.
@@ -64,16 +65,19 @@ public:
         requests.clear();
     }
     std::size_t Size() const { return entries.size(); }
-    bool Contains(const Key& actor) const {
-        return std::any_of(entries.begin(), entries.end(), [&](const auto& e) { return e && e->request.actor == actor; });
+    const Light* Find(const Key& actor) const {
+        for (const auto& entry : entries) if (entry && entry->request.actor == actor) return &entry->light;
+        return nullptr;
     }
-
+    float Opacity(const Key& actor) const {
+        for (const auto& entry : entries) if (entry && entry->request.actor == actor) return entry->fade.value;
+        return 0;
+    }
     // Hard release denied lights before rendering protected actors. A fade-out
     // would still consume renderer resources. Preferences are never changed.
-    template <class Allow>
-    void Protect(std::size_t secondaryLimit, Allow allow) {
+    void Protect(std::size_t secondaryLimit, bool dialogueOpen = false, const Key* fadingDialogue = nullptr) {
         std::stable_sort(requests.begin(), requests.end(), [](const auto& a, const auto& b) { return a.source > b.source; });
-        const bool dialogue = std::any_of(requests.begin(), requests.end(), [](const auto& r) { return r.source == NpcLightSource::Dialogue; });
+        const bool dialogue = dialogueOpen || std::any_of(requests.begin(), requests.end(), [](const auto& r) { return r.source == NpcLightSource::Dialogue; });
         std::vector<Key> accepted;
         std::vector<Key> denied;
         std::size_t secondary = 0;
@@ -81,7 +85,7 @@ public:
             if (std::find(accepted.begin(), accepted.end(), request.actor) != accepted.end() ||
                 std::find(denied.begin(), denied.end(), request.actor) != denied.end()) continue;
             if (request.source == NpcLightSource::Dialogue ||
-                (!dialogue && secondary < secondaryLimit && allow(request.actor, request.parameters))) {
+                (!dialogue && secondary < secondaryLimit)) {
                 accepted.push_back(request.actor);
                 if (request.source != NpcLightSource::Dialogue) ++secondary;
             } else denied.push_back(request.actor);
@@ -93,8 +97,12 @@ public:
             const auto& r = entry->request;
             bool drop = std::find(denied.begin(), denied.end(), r.actor) != denied.end();
             if (!Winner(r.actor)) {
-                if (dialogue || !allow(r.actor, r.parameters) || secondary >= secondaryLimit) drop = true;
-                else if (!drop) ++secondary;
+                const bool keepDialogueFade = dialogue && fadingDialogue && r.actor == *fadingDialogue &&
+                    r.source == NpcLightSource::Dialogue;
+                if (!keepDialogueFade) {
+                    if (dialogue || secondary >= secondaryLimit) drop = true;
+                    else if (!drop) ++secondary;
+                }
             }
             if (drop) {
                 if constexpr (requires { entry->light.Clear("priority protection"); })
@@ -106,7 +114,7 @@ public:
     }
 
     template <class Valid, class Render>
-    void Update(float delta, Valid valid, Render render) {
+    void Update(float delta, Valid valid, Render render, std::size_t secondaryLimit = std::numeric_limits<std::size_t>::max(), bool dialogueOpen = false, const Key* fadingDialogue = nullptr) {
         // Invalid actors cannot reserve capacity or retain a scene object during a fade.
         std::erase_if(requests, [&](const auto& request) { return !valid(request.actor); });
         std::erase_if(entries, [&](auto& entry) {
@@ -114,6 +122,7 @@ public:
             entry->light.Clear();
             return true;
         });
+        if (secondaryLimit != std::numeric_limits<std::size_t>::max()) Protect(secondaryLimit, dialogueOpen, fadingDialogue);
         std::stable_sort(requests.begin(), requests.end(), [](const auto& a, const auto& b) { return a.source > b.source; });
         for (const auto& request : requests) {
             if (Winner(request.actor) != &request) continue;

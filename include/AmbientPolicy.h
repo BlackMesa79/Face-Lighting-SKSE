@@ -15,9 +15,9 @@ struct AmbientPolicy {
 
     void Suspend(double now) { pending.reset(); ready = now + 2.0; valid = false; }
     void Step(double now, std::optional<float> raw, bool actualLight, float offset,
-        float low, float high, float delay, bool active) {
+        float low, float high, float delay, bool active, double maxTickGap = 0.5) {
         // A long gap may be a pause/loading interval, not sustained darkness.
-        if (lastTick && now - *lastTick > 0.5) Suspend(now);
+        if (lastTick && now - *lastTick > maxTickGap) Suspend(now);
         lastTick = now;
         if (!observedLight || *observedLight != actualLight) {
             observedLight = actualLight;

@@ -112,7 +112,14 @@ namespace {
             changed |= ImGuiMCP::Checkbox(tr(Localization::globalLinear), &draft.csGlobalLinear);
             ImGuiMCP::TextWrapped("%s", tr(Localization::globalLinearHelp));
             ImGuiMCP::TextWrapped("%s", tr(Localization::linearHelp));
-            MenuStyle::Heading(tr(Localization::ambientTitle));
+            const char* pollingOptions[]{tr(Localization::ambientPollPerformance), tr(Localization::ambientPollBalanced),
+                tr(Localization::ambientPollResponsive)};
+            changed |= ImGuiMCP::Combo(tr(Localization::ambientPollMode), &draft.ambientPollMode, pollingOptions, 3);
+            ImGuiMCP::TextWrapped("%s", tr(Localization::ambientPollHelp));
+
+        }
+        if (page == Page::player) {
+            if (MenuStyle::Section(tr(Localization::ambientTitle))) {
             const char* ambientModes[]{tr(Localization::ambientDisabled), tr(Localization::ambientAutomatic), tr(Localization::ambientFiltered)};
             int ambientIndex = draft.ambientMode == 3 ? 2 : draft.ambientMode == 2 ? 1 : 0;
             if (ImGuiMCP::Combo(tr(Localization::ambientMode), &ambientIndex, ambientModes, 3)) {
@@ -126,7 +133,7 @@ namespace {
                 changed |= ImGuiMCP::SliderFloat(tr(Localization::ambientHigh), &draft.ambientOffThreshold, draft.ambientOnThreshold + 1.0f, 1000.0f, "%.1f");
                 changed |= ImGuiMCP::SliderFloat(tr(Localization::ambientDelay), &draft.ambientDelay, 0.5f, 10.0f, "%.1f");
             }
-
+            }
         }
         if (page == Page::player) {
             if (MenuStyle::Section(tr(Localization::sectionKeys), false)) {
@@ -228,6 +235,10 @@ namespace {
             }
             }
         if (page == Page::npc) {
+        changed |= ImGuiMCP::SliderInt(tr(Localization::npcLightLimit), &draft.npcLightLimit,
+            Settings::minNpcLightLimit, Settings::maxNpcLightLimit);
+        ImGuiMCP::TextWrapped("%s", tr(Localization::npcLightLimitHelp));
+        ImGuiMCP::Spacing();
         static int npcPanel = 0;
         if (ImGuiMCP::Button(tr(Localization::dialogueTitle))) npcPanel = 0;
         ImGuiMCP::SameLine();
@@ -280,6 +291,23 @@ namespace {
         if (MenuStyle::Section(tr(Localization::sectionBehavior))) {
 
         changed |= ImGuiMCP::Checkbox(tr(followerPanel ? Localization::followerEnabled : selectedPanel ? Localization::selectedEnabled : Localization::dialogueEnabled), &d.enabled);
+        if (!followerPanel && !selectedPanel) {
+            const char* modes[]{tr(Localization::ambientDisabled), tr(Localization::dialogueAmbientFixed), tr(Localization::dialogueAmbientFiltered)};
+            int index = draft.dialogueAmbientMode == 3 ? 2 : draft.dialogueAmbientMode == 2 ? 1 : 0;
+            if (ImGuiMCP::Combo(tr(Localization::dialogueAmbientMode), &index, modes, 3)) {
+                constexpr int values[]{0, 2, 3}; draft.dialogueAmbientMode = values[index]; changed = true;
+            }
+            if (draft.dialogueAmbientMode) {
+                ImGuiMCP::TextWrapped("%s", tr(Localization::dialogueAmbientHelp));
+                if (draft.dialogueAmbientMode == 2) {
+                    changed |= ImGuiMCP::SliderFloat(tr(Localization::dialogueAmbientCompensation), &draft.dialogueAmbientCompensation, 0.0f, 1000.0f, "%.1f");
+                    changed |= ImGuiMCP::SliderFloat(tr(Localization::dialoguePlayerCompensation), &draft.ambientCompensation, 0.0f, 1000.0f, "%.1f");
+                }
+                changed |= ImGuiMCP::SliderFloat(tr(Localization::ambientLow), &draft.dialogueAmbientOnThreshold, 0.0f, 999.0f, "%.1f");
+                changed |= ImGuiMCP::SliderFloat(tr(Localization::ambientHigh), &draft.dialogueAmbientOffThreshold, draft.dialogueAmbientOnThreshold + 1.0f, 1000.0f, "%.1f");
+                changed |= ImGuiMCP::SliderFloat(tr(Localization::ambientDelay), &draft.dialogueAmbientDelay, 0.5f, 10.0f, "%.1f");
+            }
+        }
         changed |= ImGuiMCP::Checkbox(tr(Localization::dialogueTransition), &d.transition);
         if (d.transition) changed |= ImGuiMCP::SliderFloat(tr(Localization::dialogueDuration), &d.duration, 0.0f, 3.0f, "%.2f");
         }
@@ -361,7 +389,7 @@ void ConfigMenu::Register() {
         SKSE::log::warn("SKSE Menu Framework not loaded; FaceLighting menu unavailable, INI configuration remains available");
         return;
     }
-    for (const auto name : {"AddSectionItem", "RegisterEventPriority", "igTextUnformatted", "igCheckbox", "igSliderFloat", "igTextWrappedV", "igButton", "igSameLine", "igCombo_Str_arr", "igPushID_Str", "igPushID_Int", "igPopID", "igBeginDisabled", "igEndDisabled", "igSpacing", "igSeparator", "igTextColoredV", "igPushStyleColor_Vec4", "igPopStyleColor", "igPushStyleVar_Float", "igPushStyleVar_Vec2", "igPopStyleVar", "igGetContentRegionAvail", "igPushItemWidth", "igPopItemWidth", "igCollapsingHeader_TreeNodeFlags"}) {
+    for (const auto name : {"AddSectionItem", "RegisterEventPriority", "igTextUnformatted", "igCheckbox", "igSliderFloat", "igSliderInt", "igTextWrappedV", "igButton", "igSameLine", "igCombo_Str_arr", "igPushID_Str", "igPushID_Int", "igPopID", "igBeginDisabled", "igEndDisabled", "igSpacing", "igSeparator", "igTextColoredV", "igPushStyleColor_Vec4", "igPopStyleColor", "igPushStyleVar_Float", "igPushStyleVar_Vec2", "igPopStyleVar", "igGetContentRegionAvail", "igPushItemWidth", "igPopItemWidth", "igCollapsingHeader_TreeNodeFlags"}) {
         if (!GetProcAddress(module, name)) {
             SKSE::log::warn("Menu Framework missing export {}; skipping menu registration", name);
             return;

@@ -3,9 +3,36 @@ from pathlib import Path
 import argparse
 import hashlib
 import re
+import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+
+def package_source(version, destination):
+    # Read current files, including new implementation files not yet committed.
+    paths = subprocess.check_output(
+        ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+        cwd=ROOT).decode('utf-8').split('\0')
+    directories = {'src', 'include', 'extern', 'tests', 'scripts', 'docs', 'languages'}
+    root_files = {'.gitignore', 'xmake.lua', 'FaceLighting.ini', 'LICENSE',
+                  'LICENSE.txt', 'README.md', 'README.txt', 'THIRD_PARTY_NOTICES.md',
+                  'HANDOFF.md', 'CHANGELOG.md'}
+    selected = sorted({p for p in paths if p and (p in root_files or
+        p.split('/')[0] in directories or p.startswith(f'release-materials/{version}/'))
+        and (ROOT / p).is_file()})
+    prefix = f'FaceLighting-SKSE-{version}-source/'
+    archive = destination / f'FaceLighting-SKSE-{version}-source.zip'
+    with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        for name in selected:
+            z.write(ROOT / name, prefix + name)
+    with zipfile.ZipFile(archive) as z:
+        assert z.testzip() is None
+        for name in selected:
+            assert z.read(prefix + name) == (ROOT / name).read_bytes()
+        for required in ('xmake.lua', 'src/PublicAPI.cpp', 'include/FaceLightingAPI.h',
+                         'LICENSE.txt', 'extern/CommonLibVR/LICENSE'):
+            assert prefix + required in z.namelist()
+    print(f'{archive}: {len(selected)} source files, verified')
 
 def package(version, dll):
     destination = ROOT / 'build/releases' / (version.removesuffix('.0'))
@@ -62,6 +89,7 @@ the repository main branch may contain later development.
         assert {n for n in z.namelist() if not n.startswith('SKSE/')} == {'readme.txt'}
         for name, contents in files.items():
             assert z.read(name) == contents
+    package_source(version, destination)
     (destination / 'SHA256SUMS.txt').write_text(''.join(
         hashlib.sha256(p.read_bytes()).hexdigest() + '  ' + p.name + '\n'
         for p in sorted(destination.glob('*.zip'))), encoding='ascii')

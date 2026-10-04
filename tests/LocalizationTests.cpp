@@ -34,6 +34,14 @@ int main() {
         Check(std::string(playerTransition.Get("zh-cn")).find("玩家面光渐亮渐暗") != std::string::npos);
         Check(std::string(exclusionDiagnostics.Get("en")).find("restart required") != std::string::npos);
         Check(std::string(ambientObserve.Get("en")).find("Observe compensation only") != std::string::npos);
+        Check(std::string(npcLightLimit.Get("zh-cn")).find("同时启用的 NPC 面光数量") != std::string::npos);
+        Check(std::string(npcLightLimit.Get("en")).find("Simultaneous NPC face lights") != std::string::npos);
+        Check(std::string(npcLightLimitHelp.Get("en")).find("default 4") != std::string::npos);
+        Check(std::string(dialogueAmbientMode.Get("zh-cn")).find("对话面光环境控制模式") != std::string::npos);
+        Check(std::string(dialogueAmbientFiltered.Get("en")).find("live exclusion") != std::string::npos);
+        Check(std::string(ambientPollMode.Get("zh-cn")).find("环境检测频率") != std::string::npos);
+        Check(std::string(ambientPollPerformance.Get("en")).find("1 second") != std::string::npos);
+        Check(std::string(ambientPollResponsive.Get("zh-cn")).find("0.2 秒") != std::string::npos);
         Load(root / "missing");
         Check(std::string(enabled.Get("fr")) == "Enable player face light###enabled");
         std::cout << "Localization UTF-8, language detection, fallback, invalid files and stable IDs passed.\n";

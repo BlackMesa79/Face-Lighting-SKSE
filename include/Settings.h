@@ -31,11 +31,18 @@ namespace Settings {
         bool exclusionDiagnostics = false; // Passive call-site probe; enable at startup only.
         bool playerTransition = true;
         float playerDuration = 0.2f;
+        int ambientPollMode = 0; // 0 performance (1s), 1 balanced (0.5s), 2 responsive (0.2s).
         int ambientMode = 0; // 0 disabled, 1 observe compensation, 2 fixed compensation, 3 live exclusion
+        int dialogueAmbientMode = 0; // 0 off, 2 fixed compensation, 3 live exclusion (player-position sample).
+        float dialogueAmbientCompensation = 80.0f; // Dialogue light's measured contribution in fixed mode.
+        float dialogueAmbientOnThreshold = 30.0f;
+        float dialogueAmbientOffThreshold = 50.0f;
+        float dialogueAmbientDelay = 2.0f;
         float ambientCompensation = 80.0f; // Measured raw delta at the current light settings.
         float ambientOnThreshold = 30.0f;
         float ambientOffThreshold = 50.0f;
         float ambientDelay = 2.0f;
+        int npcLightLimit = 4; // Shared follower/selected budget; player and dialogue are independent.
         bool rosterNotifications = true;
         bool enabled = false;
         int hotkey = 38; // DirectInput scan code: L; 0 disables the shortcut.
@@ -60,6 +67,7 @@ namespace Settings {
         bool operator==(const Values&) const = default;
     };
 
+    inline constexpr int minNpcLightLimit = 1, maxNpcLightLimit = 32;
     inline constexpr float minRadius = 10.0f, maxRadius = 500.0f;
     inline constexpr float maxIntensity = 5.0f, maxOffset = 150.0f;
     Values Normalize(Values values);
@@ -67,6 +75,7 @@ namespace Settings {
     Values GetActive();
     void Preview(const Values& values);
     void ClearPreview();
+    bool HasPreview();
     void Load();
     bool Save(const Values& values);
     bool SetPlayerEnabled(bool enabled);

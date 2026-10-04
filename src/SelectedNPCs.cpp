@@ -7,6 +7,7 @@
 #include "ActorRuntime.h"
 #include "Followers.h"
 #include "Notifications.h"
+#include "PersonalLightPolicy.h"
 #include <mutex>
 #include <algorithm>
 #include <atomic>
@@ -123,6 +124,25 @@ void SelectedNPCs::ToggleCrosshairTarget() {
     });
 }
 void SelectedNPCs::SetEnabled(RE::FormID id, bool enabled) { Queue([id, enabled] { for (auto& row : records) if (row.id == id) row.enabled = enabled; }); }
+std::optional<bool> SelectedNPCs::PersonalEnabled(RE::FormID id) {
+    std::scoped_lock lock(mutex);
+    for (const auto& row : records) if (row.id == id) return row.enabled != 0;
+    return {};
+}
+FaceLightingAPI::Result SelectedNPCs::SetPersonalNow(RE::Actor* actor, bool enabled) {
+    using FaceLightingAPI::Result;
+    std::scoped_lock lock(mutex);
+    if (!active) return Result::NotReady;
+    if (!Eligible(actor)) return Result::InvalidTarget;
+    const auto settings = Settings::Get();
+    const auto id = actor->GetFormID();
+    const auto result = PersonalLightPolicy::Set(records, id, actor->IsPlayerTeammate(),
+        Followers::PersonalEnabled(id), enabled, settings.follower.enabled, settings.selected.enabled,
+        Followers::SetPersonalNow);
+    if (result == Result::Ok || result == Result::NoChange)
+        for (auto& row : view.rows) if (row.id == id) row.enabled = enabled;
+    return result;
+}
 std::vector<RE::ActorHandle> SelectedNPCs::Update() {
     std::scoped_lock lock(mutex);
     std::vector<RE::ActorHandle> result;
