@@ -1,0 +1,4 @@
+0.9.2
+- Fixed player face lighting turning off nearby NPC and follower lights.
+- Follower lights now take priority over manually selected NPC lights.
+- During dialogue, other NPC lights temporarily turn off and automatically resume afterwards, respecting existing settings and the light limit.

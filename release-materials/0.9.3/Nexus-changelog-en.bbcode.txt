@@ -1,0 +1,3 @@
+0.9.3
+- Fixed incorrect actor-state detection that could reject valid NPCs or disable player and NPC face lights, reported on Skyrim SE 1.5.97.
+- Thanks to [url=https://next.nexusmods.com/profile/jinx60]jinx60[/url] for discovering and helping diagnose the issue.
