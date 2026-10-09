@@ -1,0 +1,5 @@
+Version 0.9.7
+
+- Added API V2 for temporary conversation lighting, with per-actor color, brightness and placement controls.
+- Added session pause/resume and automatic cleanup; temporary requests preserve saved settings.
+- Retained API V1 compatibility for Favorite Wheel and existing integrations.

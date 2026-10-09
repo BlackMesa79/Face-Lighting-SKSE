@@ -24,14 +24,56 @@
 #include "FaceLightingAPI.h"
 #include "DialogueAmbientPolicy.h"
 #include "AmbientPoll.h"
+#include "TemporaryLightSession.h"
 #include <Windows.h>
 
 namespace {
+    using FaceLightingAPI::Result;
+    double Seconds() {
+        return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+    Result ResolveTemporary(const FaceLightingAPI::Token& token, std::uint64_t world, RE::NiPointer<RE::Actor>& actor) {
+        if (token.session != world) return Result::StaleSession;
+        if (!token.handle || !token.formID) return Result::InvalidTarget;
+        RE::NiPointer<RE::TESObjectREFR> reference;
+        RE::LookupReferenceByHandle(token.handle, reference);
+        const auto resolved = reference ? reference->As<RE::Actor>() : nullptr;
+        if (!resolved || resolved->GetFormID() != token.formID || !ActorRuntime::SafeForLight(resolved)) return Result::InvalidTarget;
+        const auto cell = resolved->GetParentCell();
+        const auto root = resolved->Get3D(false);
+        static const RE::BSFixedString headName("NPC Head [Head]");
+        const auto object = root ? root->GetObjectByName(headName) : nullptr;
+        const auto head = object ? object->AsNode() : nullptr;
+        if (!cell || !cell->IsAttached() || !root || !head || !std::isfinite(head->world.scale) || head->world.scale <= 0.0001f)
+            return Result::NotLoaded;
+        actor.reset(resolved);
+        return Result::Ok;
+    }
+    struct RenderParameters {
+        Settings::Values settings;
+        std::optional<ColorTemperature::RGB> color;
+        RenderParameters(const Settings::Values& values) : settings(values) {}
+    };
+    RenderParameters TemporaryParameters(Settings::Values values, const FaceLightingAPI::V2::LightParameters& p) {
+        values.enabled = true;
+        values.intensity = p.intensity;
+        values.radius = values.inverseRadius = p.radius;
+        values.manualRange = true;
+        values.temperature = p.temperature;
+        values.followHeadRotation = p.offsetSpace == FaceLightingAPI::V2::OffsetSpace::HeadBone;
+        values.offsetX = p.offsetX; values.offsetY = p.offsetY; values.offsetZ = p.offsetZ;
+        RenderParameters result{values};
+        if (p.colorMode == FaceLightingAPI::V2::ColorMode::SRGB) result.color = {p.red, p.green, p.blue};
+        return result;
+    }
     struct State {
         LightInstance playerLight;
         LightTransition playerFade;
         PlayerDialoguePolicy playerDialogue;
-        NpcLightManager<RE::ActorHandle, Settings::Values, LightInstance> npcLights{SelectedNPCs::limit + Followers::lightLimit + 2};
+        NpcLightManager<RE::ActorHandle, RenderParameters, LightInstance> npcLights{SelectedNPCs::limit + Followers::lightLimit + 2};
+        TemporaryLightSession temporary;
+        std::optional<RenderParameters> lastPlayerParameters;
+        bool lastPlayerTemporary = false, wasExternalActive = false;
         std::atomic<bool> gameActive = false, loading = false, taskPending = false, resetRequested = false;
         std::atomic<std::uint64_t> session{1};
         std::atomic<DWORD> gameThread{0};
@@ -42,9 +84,20 @@ namespace {
         float previousDialogueOpacity = 0;
         std::chrono::steady_clock::time_point lastUpdate{};
 
+        void ReleaseTemporary() {
+            npcLights.DropSource(NpcLightSource::External);
+            if (lastPlayerTemporary) {
+                playerLight.Clear("temporary session released"); playerFade = {}; lastPlayerParameters.reset();
+            }
+            lastPlayerTemporary = false; wasExternalActive = false;
+        }
+
         void Clear() {
             playerLight.Clear();
             playerFade = {};
+            lastPlayerParameters.reset();
+            temporary.Clear();
+            lastPlayerTemporary = wasExternalActive = false;
             LightExclusionProbe::Reset();
             playerDialogue.Reset();
             ambientPoll = {};
@@ -65,9 +118,17 @@ namespace {
                 return;
             }
             const bool dialogueOpen = ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME);
+            temporary.Expire(Seconds());
+            temporary.Prune([&](const auto& token) {
+                RE::NiPointer<RE::Actor> actor;
+                return ResolveTemporary(token, session.load(), actor) == Result::Ok;
+            });
+            const bool externalActive = temporary.Rendering(ConfigMenu::IsOpen() || Settings::HasPreview());
+            if (!externalActive && wasExternalActive) ReleaseTemporary();
+            wasExternalActive = externalActive;
             const auto saved = Settings::Get();
             if (const auto enabled = playerDialogue.Update(dialogueOpen, saved.enablePlayerOnDialogue,
-                saved.disablePlayerAfterDialogue, saved.enabled)) Settings::SetPlayerEnabled(*enabled);
+                saved.disablePlayerAfterDialogue, saved.enabled, temporary.Exists())) Settings::SetPlayerEnabled(*enabled);
             const auto settings = Settings::GetActive();
             const auto now = std::chrono::steady_clock::now();
             const float delta = lastUpdate == std::chrono::steady_clock::time_point{} ? 0.0f :
@@ -87,15 +148,35 @@ namespace {
                 !ActorRuntime::SneakHidden(player, settings.hideWhileSneaking) &&
                 camera && (!camera->IsInFirstPerson() || settings.firstPersonLight);
             if (viewAllowed) {
-                const bool wanted = settings.enabled && ambientAllows && settings.intensity > 0 &&
+                bool wanted = settings.enabled && ambientAllows && settings.intensity > 0 &&
                     !(settings.hideWhileSneaking && player->IsSneaking());
-                playerFade.Update(wanted, settings.playerTransition, settings.playerDuration,
+                RenderParameters renderParameters{settings};
+                bool transition = settings.playerTransition;
+                float duration = settings.playerDuration;
+                bool playerTemporary = false;
+                if (externalActive) for (const auto& target : temporary.Targets()) if (target.actor.formID == player->GetFormID()) {
+                    playerTemporary = true;
+                    renderParameters = TemporaryParameters(settings, target.light);
+                    wanted = target.light.enabled && target.light.intensity > 0;
+                    transition = target.light.transitionSeconds > 0; duration = target.light.transitionSeconds;
+                }
+                if (!playerTemporary && lastPlayerTemporary) {
+                    playerLight.Clear("temporary player target removed"); playerFade = {}; lastPlayerParameters.reset();
+                }
+                lastPlayerTemporary = playerTemporary;
+                if (wanted) {
+                    lastPlayerParameters = renderParameters;
+                } else if (playerTemporary && lastPlayerParameters) {
+                    // Keep the last emitted RGB/intensity until an outgoing fade finishes.
+                    renderParameters = *lastPlayerParameters;
+                }
+                playerFade.Update(wanted, transition, duration,
                     ui->GameIsPaused() ? 0.0f : std::clamp(delta, 0.0f, 0.1f));
-                auto renderSettings = settings;
                 // Manual off requests fade-out; the instance must stay enabled until opacity reaches zero.
-                renderSettings.enabled = true;
-                playerLight.Update(player, renderSettings, playerFade.value, camera->IsInFirstPerson());
-            } else { playerLight.Clear(); playerFade = {}; }
+                renderParameters.settings.enabled = true;
+                playerLight.Update(player, renderParameters.settings, playerFade.value, camera->IsInFirstPerson(), renderParameters.color);
+                if (!wanted && playerFade.value <= 0) lastPlayerParameters.reset();
+            } else { playerLight.Clear(); playerFade = {}; lastPlayerParameters.reset(); }
 
             RE::ActorHandle target;
             const auto topics = RE::MenuTopicManager::GetSingleton();
@@ -145,27 +226,37 @@ namespace {
             const auto followerSettings = convert(settings.follower);
             npcLights.RefreshSource(NpcLightSource::Follower, followerSettings, settings.follower.transition, settings.follower.duration);
             for (const auto& actor : Followers::Update())
-                if (!dialogueOpen && settings.follower.enabled && settings.follower.intensity > 0)
+                if (!externalActive && !dialogueOpen && settings.follower.enabled && settings.follower.intensity > 0)
                     npcLights.Submit(actor, NpcLightSource::Follower, followerSettings, settings.follower.transition, settings.follower.duration);
             const auto selectedSettings = convert(settings.selected);
             npcLights.RefreshSource(NpcLightSource::Selected, selectedSettings, settings.selected.transition, settings.selected.duration);
             for (const auto& actor : SelectedNPCs::Update())
-                if (!dialogueOpen && settings.selected.enabled && settings.selected.intensity > 0)
+                if (!externalActive && !dialogueOpen && settings.selected.enabled && settings.selected.intensity > 0)
                     npcLights.Submit(actor, NpcLightSource::Selected, selectedSettings, settings.selected.transition, settings.selected.duration);
             npcLights.RefreshSource(NpcLightSource::Dialogue, lightSettings, d.transition, d.duration);
-            if (target && dialogueAmbientAllowed) npcLights.Submit(target, NpcLightSource::Dialogue, lightSettings, d.transition, d.duration);
+            if (!externalActive && target && dialogueAmbientAllowed) npcLights.Submit(target, NpcLightSource::Dialogue, lightSettings, d.transition, d.duration);
+            if (externalActive) for (const auto& request : temporary.Targets()) {
+                RE::NiPointer<RE::Actor> actor;
+                if (ResolveTemporary(request.actor, session.load(), actor) != Result::Ok || actor->IsPlayerRef()) continue;
+                auto parameters = TemporaryParameters(lightSettings, request.light);
+                // A disabled target suppresses fallback sources while its existing light fades out.
+                if (parameters.settings.intensity <= 0) parameters.settings.intensity = lightSettings.intensity > 0 ? lightSettings.intensity : 1.0f;
+                npcLights.Submit(actor->GetHandle(), NpcLightSource::External, parameters,
+                    request.light.transitionSeconds > 0, request.light.transitionSeconds,
+                    request.light.enabled && request.light.intensity > 0);
+            }
             // Dialogue temporarily reserves NPC lighting for its current speaker.
-            npcLights.Update(delta, [&](const RE::ActorHandle& handle) {
+            npcLights.Update(ui->GameIsPaused() ? 0.0f : std::clamp(delta, 0.0f, 0.1f), [&](const RE::ActorHandle& handle) {
                 const auto actor = handle.get();
                 const auto cell = actor ? actor->GetParentCell() : nullptr;
                 return ActorRuntime::Eligible(actor.get()) &&
                     !ActorRuntime::SneakHidden(actor.get(), settings.hideWhileSneaking) &&
                     actor->Get3D(false) && cell && cell->IsAttached();
-            }, [](LightInstance& light, const RE::ActorHandle& handle, const Settings::Values& values, float opacity) {
+            }, [](LightInstance& light, const RE::ActorHandle& handle, const RenderParameters& parameters, float opacity) {
                 const auto actor = handle.get();
-                light.Update(actor.get(), values, opacity);
-            }, static_cast<std::size_t>(settings.npcLightLimit), dialogueOpen,
-                target && !dialogueAmbientAllowed ? &target : nullptr);
+                light.Update(actor.get(), parameters.settings, opacity, false, parameters.color);
+            }, static_cast<std::size_t>(settings.npcLightLimit), dialogueOpen || externalActive,
+                !externalActive && target && !dialogueAmbientAllowed ? &target : nullptr);
         }
     };
     State& GetState() {
@@ -242,6 +333,37 @@ FaceLight::Context FaceLight::GetContext() {
         state.gameThread.load() == GetCurrentThreadId()};
 }
 
+FaceLightingAPI::Result FaceLight::BeginTemporary(const FaceLightingAPI::V2::BeginInfo& info, FaceLightingAPI::V2::Session& output) {
+    auto& state = GetState();
+    return state.temporary.Begin(info, state.session.load(), Seconds(), output);
+}
+FaceLightingAPI::Result FaceLight::UpdateTemporary(const FaceLightingAPI::V2::UpdateInfo& info) {
+    auto& state = GetState();
+    const auto result = state.temporary.Update(info, state.session.load(), Seconds(), [&](const auto& token) {
+        RE::NiPointer<RE::Actor> actor;
+        return ResolveTemporary(token, state.session.load(), actor);
+    });
+    if (result == Result::Ok) {
+        if (!state.temporary.Active()) state.ReleaseTemporary();
+        RequestUpdate();
+    }
+    return result;
+}
+FaceLightingAPI::Result FaceLight::RenewTemporary(const FaceLightingAPI::V2::Session& session) {
+    auto& state = GetState();
+    return state.temporary.Renew(session, state.session.load(), Seconds());
+}
+FaceLightingAPI::Result FaceLight::EndTemporary(const FaceLightingAPI::V2::Session& session) {
+    auto& state = GetState();
+    const auto result = state.temporary.End(session, state.session.load(), Seconds());
+    if (result == Result::Ok) { state.ReleaseTemporary(); RequestUpdate(); }
+    return result;
+}
+FaceLightingAPI::Result FaceLight::QueryTemporary(const FaceLightingAPI::V2::Session& session, FaceLightingAPI::V2::SessionState& output) {
+    auto& state = GetState();
+    return state.temporary.Query(session, state.session.load(), Seconds(), output);
+}
+
 std::uint32_t FaceLight::RuntimeFlags(RE::Actor* actor) {
     using namespace FaceLightingAPI;
     std::uint32_t flags = 0;
@@ -257,22 +379,27 @@ std::uint32_t FaceLight::RuntimeFlags(RE::Actor* actor) {
     const auto topics = RE::MenuTopicManager::GetSingleton();
     const auto speaker = topics ? topics->speaker.get() : RE::NiPointer<RE::TESObjectREFR>{};
     const bool isSpeaker = dialogue && speaker.get() == actor && settings.dialogue.enabled && settings.dialogue.intensity > 0;
-    if (isSpeaker) flags |= Dialogue;
-    const bool hiddenDialogueAmbient = isSpeaker && !state.dialogueAmbientAllowed;
+    const bool externalActive = state.temporary.Rendering(ConfigMenu::IsOpen() || Settings::HasPreview());
+    const auto external = externalActive ? std::find_if(state.temporary.Targets().begin(), state.temporary.Targets().end(),
+        [&](const auto& t) { return t.actor.formID == actor->GetFormID(); }) : state.temporary.Targets().end();
+    const bool externalTarget = external != state.temporary.Targets().end();
+    if (isSpeaker && !externalActive) flags |= Dialogue;
+    const bool hiddenDialogueAmbient = !externalActive && isSpeaker && !state.dialogueAmbientAllowed;
     if (hiddenDialogueAmbient) flags |= HiddenAmbient;
     const LightInstance* light = nullptr;
     if (actor->IsPlayerRef()) {
         light = &state.playerLight;
         const auto camera = RE::PlayerCamera::GetSingleton();
         if (!camera || (camera->IsInFirstPerson() && !settings.firstPersonLight)) flags |= HiddenView;
-        if (!state.ambientAllowed) flags |= HiddenAmbient;
+        if (!externalTarget && !state.ambientAllowed) flags |= HiddenAmbient;
     } else {
         light = state.npcLights.Find(actor->GetHandle());
-        if (dialogue && !isSpeaker) flags |= HiddenDialogue;
+        if (externalActive ? !externalTarget : dialogue && !isSpeaker) flags |= HiddenDialogue;
         const auto selected = SelectedNPCs::PersonalEnabled(actor->GetFormID());
-        const bool wanted = (isSpeaker && !hiddenDialogueAmbient) || (actor->IsPlayerTeammate() && settings.follower.enabled &&
+        const bool normalWanted = (isSpeaker && !hiddenDialogueAmbient) || (actor->IsPlayerTeammate() && settings.follower.enabled &&
             settings.follower.intensity > 0 && Followers::PersonalEnabled(actor->GetFormID())) ||
             (selected.value_or(false) && settings.selected.enabled && settings.selected.intensity > 0);
+        const bool wanted = externalActive ? externalTarget && external->light.enabled && external->light.intensity > 0 : normalWanted;
         if (wanted && !light && (flags & Loaded) && !(flags & (HiddenDialogue | HiddenSneak | HiddenAmbient))) flags |= NotAllocated;
     }
     const auto camera = actor->IsPlayerRef() ? RE::PlayerCamera::GetSingleton() : nullptr;

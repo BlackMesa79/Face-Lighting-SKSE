@@ -40,7 +40,8 @@
             applied.reset();
         }
 
-        void Update(RE::Actor* player, const Settings::Values& settings, float opacity = 1.0f, bool firstPerson = false) {
+        void Update(RE::Actor* player, const Settings::Values& settings, float opacity = 1.0f, bool firstPerson = false,
+            std::optional<ColorTemperature::RGB> overrideColor = {}) {
             if (!ActorRuntime::SafeForLight(player) || ActorRuntime::SneakHidden(player, settings.hideWhileSneaking) ||
                 !settings.enabled || settings.intensity <= 0 || opacity <= 0) {
                 Clear("actor hidden, unsafe or light disabled");
@@ -115,9 +116,10 @@
             }
             // Modulate emitted color, keeping the CS range based on target intensity.
             // This avoids a collapsing inverse-square radius during fade-out.
-            const auto color = ColorTemperature::Get(settings.temperature,
-                ColorTemperature::UseLinearColor(CSLighting::Available(settings.csMode), settings.csGlobalLinear,
-                    settings.csInverseSquare, settings.csLinear));
+            const bool linearColor = ColorTemperature::UseLinearColor(CSLighting::Available(settings.csMode), settings.csGlobalLinear,
+                settings.csInverseSquare, settings.csLinear);
+            const auto color = overrideColor ? ColorTemperature::ConvertSRGB(*overrideColor, linearColor) :
+                ColorTemperature::Get(settings.temperature, linearColor);
             light->GetLightRuntimeData().diffuse = {color.r * opacity, color.g * opacity, color.b * opacity};
             RE::NiUpdateData update{};
             light->Update(update);

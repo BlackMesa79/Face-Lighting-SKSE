@@ -1,7 +1,30 @@
 #pragma once
 
+#include <cassert>
+#include <cstddef>
+#include <type_traits>
+
 #include "REL/Relocation.h"
 #include "SKSE/Version.h"
+
+namespace REL
+{
+	/**
+	 * Applies the byte/slot shift required when a Skyrim runtime update inserts an
+	 * additional base class/vtable slot, pushing every member or virtual function
+	 * declared after it forward by a fixed amount on builds at or above a_threshold.
+	 *
+	 * <p>
+	 * Neither a_delta nor a_threshold has a default -- both are per-class RE facts
+	 * (a member shift is a byte count, a vtable slot index shifts by however many
+	 * slots were inserted) and must be confirmed per call site rather than assumed.
+	 * </p>
+	 */
+	[[nodiscard]] SKYRIM_REL std::size_t VersionShift(std::size_t a_offset, std::size_t a_delta, REL::Version a_threshold) noexcept
+	{
+		return REL::Module::IsAtLeast(a_threshold) ? a_offset + a_delta : a_offset;
+	}
+}
 
 // Helper macros for generating runtime data accessor functions.
 // These reduce boilerplate for common patterns across ~160+ accessor function pairs.
@@ -27,14 +50,20 @@
 
 // Generates GetXXX() accessor with SE/VR offsets
 // Params: StructType, FuncName, SEOffset, VROffset
-#define RUNTIME_DATA_ACCESSOR_EX(StructType, FuncName, SEOffset, VROffset) \
-	[[nodiscard]] inline StructType& FuncName() noexcept                   \
-	{                                                                      \
-		return REL::RelocateMember<StructType>(this, SEOffset, VROffset);  \
-	}                                                                      \
-	[[nodiscard]] inline const StructType& FuncName() const noexcept       \
-	{                                                                      \
-		return REL::RelocateMember<StructType>(this, SEOffset, VROffset);  \
+// VROffset=0 means "no VR layout" -- misuse would silently read `this + 0`
+// as StructType instead of failing loudly, so this asserts on it in VR.
+#define RUNTIME_DATA_ACCESSOR_EX(StructType, FuncName, SEOffset, VROffset)                             \
+	[[nodiscard]] inline StructType& FuncName() noexcept                                               \
+	{                                                                                                  \
+		assert(!((VROffset) == 0 && REL::Module::IsVR()) &&                                            \
+			   #FuncName "() has no VR layout (VROffset=0) -- call GetVRRuntimeData() instead in VR"); \
+		return REL::RelocateMember<StructType>(this, SEOffset, VROffset);                              \
+	}                                                                                                  \
+	[[nodiscard]] inline const StructType& FuncName() const noexcept                                   \
+	{                                                                                                  \
+		assert(!((VROffset) == 0 && REL::Module::IsVR()) &&                                            \
+			   #FuncName "() has no VR layout (VROffset=0) -- call GetVRRuntimeData() instead in VR"); \
+		return REL::RelocateMember<StructType>(this, SEOffset, VROffset);                              \
 	}
 
 // Generates GetXXX() accessor with SE old/AE new version gate
@@ -61,6 +90,22 @@
 #define RUNTIME_DATA_ACCESSOR_VERSIONED(StructType, Version, OldOffset, NewOffset) \
 	RUNTIME_DATA_ACCESSOR_VERSIONED_EX(StructType, GetRuntimeData, Version, OldOffset, NewOffset)
 
+// Generates a GetXXX() accessor for a field/struct with no pre-Version offset -- nullptr on older runtimes.
+// Params: StructType, FuncName, Version, Offset (absolute, from `this`)
+// No plain (non-_EX) variant: a name shared across multiple appendices on one class would collide.
+#define RUNTIME_DATA_ACCESSOR_VERSIONED_OPTIONAL_EX(StructType, FuncName, Version, Offset) \
+	[[nodiscard]] inline StructType* FuncName() noexcept                                   \
+	{                                                                                      \
+		if (!REL::Module::IsAtLeast(Version)) {                                            \
+			return nullptr;                                                                \
+		}                                                                                  \
+		return &REL::RelocateMember<StructType>(this, Offset);                             \
+	}                                                                                      \
+	[[nodiscard]] inline const StructType* FuncName() const noexcept                       \
+	{                                                                                      \
+		return const_cast<std::remove_cvref_t<decltype(*this)>*>(this)->FuncName();        \
+	}
+
 // ========================================
 // Runtime-Exclusive Accessors
 // ========================================
@@ -76,6 +121,29 @@
 	[[nodiscard]] inline const StructType& FuncName() const noexcept \
 	{                                                                \
 		return REL::RelocateMember<StructType>(this, 0, VROffset);   \
+	}
+
+// Generates a GetXXX() accessor for a field shared by name (not offset)
+// between a class's SE/AE and VR runtime-data structs -- no "wrong" struct
+// left to pick, unlike RUNTIME_DATA_ACCESSOR_EX + a manual IsVR() branch.
+// Params: FieldType, FuncName, RuntimeDataFunc, VRRuntimeDataFunc, FieldName
+// VRRuntimeDataFunc must be a self-guarding pointer accessor (e.g.
+// VR_ONLY_POINTER_ACCESSOR); guaranteed non-null here since IsVR() is true.
+// Usage: RUNTIME_DATA_FIELD_ACCESSOR(ImageSpaceBaseData*, GetCurrentBaseData, GetRuntimeData, GetVRRuntimeData, currentBaseData)
+#define RUNTIME_DATA_FIELD_ACCESSOR(FieldType, FuncName, RuntimeDataFunc, VRRuntimeDataFunc, FieldName) \
+	[[nodiscard]] inline FieldType& FuncName() noexcept                                                 \
+	{                                                                                                   \
+		if (REL::Module::IsVR()) {                                                                      \
+			return VRRuntimeDataFunc()->FieldName;                                                      \
+		}                                                                                               \
+		return RuntimeDataFunc().FieldName;                                                             \
+	}                                                                                                   \
+	[[nodiscard]] inline FieldType const& FuncName() const noexcept                                     \
+	{                                                                                                   \
+		if (REL::Module::IsVR()) {                                                                      \
+			return VRRuntimeDataFunc()->FieldName;                                                      \
+		}                                                                                               \
+		return RuntimeDataFunc().FieldName;                                                             \
 	}
 
 // ========================================
@@ -120,6 +188,50 @@
 		} else {                                                        \
 			return &REL::RelocateMember<StructType>(this, 0, VROffset); \
 		}                                                               \
+	}
+
+// Generates GetXXX() pointer accessor for AE-only inline data present since AE's
+// initial release (returns nullptr on SE/VR). For AE data reached via a stored
+// pointer member and added partway through AE's own version lifecycle, use
+// AE_ONLY_POINTER_ACCESSOR_VERSIONED instead.
+// Params: StructType, FuncName, AEOffset
+#define AE_ONLY_POINTER_ACCESSOR(StructType, FuncName, AEOffset)     \
+	[[nodiscard]] inline StructType* FuncName() noexcept             \
+	{                                                                \
+		if SKYRIM_REL_CONSTEXPR (REL::Module::IsAE()) {              \
+			return &REL::RelocateMember<StructType>(this, AEOffset); \
+		} else {                                                     \
+			return nullptr;                                          \
+		}                                                            \
+	}                                                                \
+	[[nodiscard]] inline const StructType* FuncName() const noexcept \
+	{                                                                \
+		if SKYRIM_REL_CONSTEXPR (REL::Module::IsAE()) {              \
+			return &REL::RelocateMember<StructType>(this, AEOffset); \
+		} else {                                                     \
+			return nullptr;                                          \
+		}                                                            \
+	}
+
+// Generates GetXXX() pointer accessor for AE-only data reached via a stored
+// pointer member, present only from a given SKSE runtime version onward within
+// AE itself (returns nullptr on SE/VR, and on AE before Version). For AE data
+// inline-embedded at a fixed offset with no version gate, use
+// AE_ONLY_POINTER_ACCESSOR instead.
+// Params: StructType, FuncName, Version, AEOffset
+#define AE_ONLY_POINTER_ACCESSOR_VERSIONED(StructType, FuncName, Version, AEOffset)                       \
+	[[nodiscard]] inline StructType* FuncName() noexcept                                                  \
+	{                                                                                                     \
+		if SKYRIM_REL_CONSTEXPR (REL::Module::IsAE()) {                                                   \
+			if (REL::Module::get().version().compare(Version) != std::strong_ordering::less) {            \
+				return REL::RelocateMember<StructType*>(this, AEOffset);                                  \
+			}                                                                                             \
+		}                                                                                                 \
+		return nullptr;                                                                                   \
+	}                                                                                                     \
+	[[nodiscard]] inline const StructType* FuncName() const noexcept                                      \
+	{                                                                                                     \
+		return const_cast<std::remove_const_t<std::remove_pointer_t<decltype(this)>>*>(this)->FuncName(); \
 	}
 
 // ========================================

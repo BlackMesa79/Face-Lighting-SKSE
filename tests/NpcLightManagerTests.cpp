@@ -1,4 +1,6 @@
 #include "NpcLightManager.h"
+#include "PersonalLightPolicy.h"
+#include "FollowerPreferences.h"
 #include <iostream>
 #include <map>
 #include <stdexcept>
@@ -228,6 +230,29 @@ int main() {
         ambientDialogue.Submit(2, NpcLightSource::Selected, 2, false, 0);
         ambientDialogue.Update(0.1f, [](int) { return true; }, [](auto&...) {}, 4);
         Check(ambientDialogue.Size() == 2); // Personal sources recover after dialogue, preferences intact.
+
+        // Shared personal off removes both requests even while still recruited,
+        // but allows a temporary dialogue light and does not restore personal light afterward.
+        manager.Clear();
+        std::vector<SelectedNPCRecord::Record> selected{{10, 1}};
+        FollowerPreferences preferences;
+        auto personalFrame = [&](bool dialogue, float delta = 0.2f) {
+            manager.BeginFrame();
+            if (!dialogue && preferences.Enabled(10)) manager.Submit(10, NpcLightSource::Follower, 30, true, 0.2f);
+            if (!dialogue && selected[0].enabled) manager.Submit(10, NpcLightSource::Selected, 40, true, 0.2f);
+            if (dialogue) manager.Submit(10, NpcLightSource::Dialogue, 50, true, 0.2f);
+            tick(delta);
+        };
+        personalFrame(false); personalFrame(false);
+        Check(manager.Size() == 1 && rendered.at(10).first == 30);
+        Check(PersonalLightPolicy::Set(selected, 10, true, true, false, true, true,
+            [&](auto id, auto enabled) { return preferences.Set(id, enabled); }) == FaceLightingAPI::Result::Ok);
+        personalFrame(false); personalFrame(false);
+        Check(manager.Size() == 0 && rendered.empty());
+        personalFrame(true); personalFrame(true);
+        Check(manager.Size() == 1 && rendered.at(10).first == 50);
+        personalFrame(false); personalFrame(false);
+        Check(manager.Size() == 0 && rendered.empty() && !preferences.Enabled(10) && !selected[0].enabled);
 
         std::cout << "NPC source priority, preemption, protection budget, restoration and lifecycle passed.\n";
     } catch (const std::exception& e) { std::cerr << e.what(); return 1; }

@@ -12,7 +12,7 @@ namespace RE
 	ButtonEvent* BSInputEventQueue::GetCachedEvent<ButtonEvent>()
 	{
 		if (buttonEventCount < MAX_BUTTON_EVENTS) {
-			return &GetRuntimeData().buttonEvents[buttonEventCount];
+			return CachedEventAt<ButtonEvent>(kButtonEventArray, buttonEventCount);
 		}
 
 		return nullptr;
@@ -22,7 +22,7 @@ namespace RE
 	CharEvent* BSInputEventQueue::GetCachedEvent<CharEvent>()
 	{
 		if (charEventCount < MAX_CHAR_EVENTS) {
-			return &GetRuntimeData().charEvents[charEventCount];
+			return CachedEventAt<CharEvent>(kCharEventArray, charEventCount);
 		}
 
 		return nullptr;
@@ -32,7 +32,7 @@ namespace RE
 	MouseMoveEvent* BSInputEventQueue::GetCachedEvent<MouseMoveEvent>()
 	{
 		if (mouseEventCount < MAX_MOUSE_EVENTS) {
-			return &GetRuntimeData().mouseEvents[mouseEventCount];
+			return CachedEventAt<MouseMoveEvent>(kMouseEventArray, mouseEventCount);
 		}
 
 		return nullptr;
@@ -42,7 +42,7 @@ namespace RE
 	ThumbstickEvent* BSInputEventQueue::GetCachedEvent<ThumbstickEvent>()
 	{
 		if (thumbstickEventCount < MAX_THUMBSTICK_EVENTS) {
-			return &GetRuntimeData().thumbstickEvents[thumbstickEventCount];
+			return CachedEventAt<ThumbstickEvent>(kThumbstickEventArray, thumbstickEventCount);
 		}
 
 		return nullptr;
@@ -52,7 +52,17 @@ namespace RE
 	DeviceConnectEvent* BSInputEventQueue::GetCachedEvent<DeviceConnectEvent>()
 	{
 		if (connectEventCount < MAX_CONNECT_EVENTS) {
-			return &GetRuntimeData().connectEvents[connectEventCount];
+			return CachedEventAt<DeviceConnectEvent>(kConnectEventArray, connectEventCount);
+		}
+
+		return nullptr;
+	}
+
+	template <>
+	KinectEvent* BSInputEventQueue::GetCachedEvent<KinectEvent>()
+	{
+		if (kinectEventCount < MAX_KINECT_EVENTS) {
+			return CachedEventAt<KinectEvent>(kKinectEventArray, kinectEventCount);
 		}
 
 		return nullptr;
@@ -112,16 +122,16 @@ namespace RE
 
 	void BSInputEventQueue::PushOntoInputQueue(InputEvent* a_event)
 	{
-		if (!GetRuntimeData().queueHead) {
-			GetRuntimeData().queueHead = a_event;
+		if (!GetQueueHead()) {
+			GetQueueHead() = a_event;
 		}
 
-		if (GetRuntimeData().queueTail) {
-			GetRuntimeData().queueTail->next = a_event;
+		if (GetQueueTail()) {
+			GetQueueTail()->next = a_event;
 		}
 
-		GetRuntimeData().queueTail = a_event;
-		GetRuntimeData().queueTail->next = nullptr;
+		GetQueueTail() = a_event;
+		GetQueueTail()->next = nullptr;
 	}
 
 	void BSInputEventQueue::ClearInputQueue()
@@ -132,7 +142,7 @@ namespace RE
 		mouseEventCount = 0;
 		charEventCount = 0;
 		buttonEventCount = 0;
-		GetRuntimeData().queueTail = nullptr;
-		GetRuntimeData().queueHead = nullptr;
+		GetQueueTail() = nullptr;
+		GetQueueHead() = nullptr;
 	}
 }

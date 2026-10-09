@@ -8,13 +8,18 @@ the root license.
 
 - Source: https://github.com/alandtse/CommonLibSSE-NG
 - Vendored directory: `extern/CommonLibVR` (historical directory name).
-- Version metadata: **4.39.3** in CMakeLists.txt and vcpkg.json.
-- License: [MIT](extern/CommonLibVR/LICENSE), copyright Ryan-rsm-McKenzie and
-  other notices retained in the upstream files.
-- This is a vendored source snapshot, not a submodule. Its original Git commit
-  was not retained. The exact source used by this project is included here.
-- SE and AE are enabled; VR is disabled. This dependency has not been upgraded
-  for Skyrim 1.7.x.
+- Pinned release: **v11.0.0**, commit `94faaed0c60eddd8347767f2d4d29a97c93bde8c`.
+- Current upstream license: [GPL-3.0-or-later](extern/CommonLibVR/COPYING.txt)
+  with the [Modding Exception and GPL-3.0 Linking Exception](extern/CommonLibVR/EXCEPTIONS.md).
+  The original [MIT notice](extern/CommonLibVR/licenses/LICENSE-MIT.txt) and
+  [upstream HDE64 notice](extern/CommonLibVR/licenses/LICENSE-hde64.txt) are retained.
+- Face Lighting's original code remains GPL-3.0-only; the upstream component
+  retains its own license and additional permissions.
+- This is a vendored source snapshot, not a submodule. The upstream commit is
+  recorded above; the exact source is included here without local library patches.
+- SE and AE are enabled; VR is disabled. The experimental build targets
+  Skyrim 1.7.99 and 1.7.104 using upstream runtime accessors and Address Library v5.
+  Gameplay validation remains separate from source/build compatibility.
 
 ## SKSE Menu Framework API
 

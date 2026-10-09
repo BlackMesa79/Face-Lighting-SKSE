@@ -1,0 +1,5 @@
+Version 0.9.6
+
+- Unified individual NPC/follower switches and hotkeys to prevent overlapping sources from keeping lights on.
+- Fixed configuration save-path handling, including missing folders and Unicode paths.
+- Dialogue lighting remains independent; existing settings and saves are retained.

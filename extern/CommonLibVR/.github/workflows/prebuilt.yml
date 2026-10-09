@@ -26,10 +26,19 @@ on:
       - src/**
       - res/**
       - vcpkg.json
+      - vcpkg-configuration.json
       - .github/workflows/prebuilt.yml
       - tests/prebuilt-consumer/**
       - tests/prebuilt-consumer-cmake/**
   workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+        default: ""
+      attach_tag:
+        description: "If set, create/attach the bundles to this release tag (e.g. to refresh a stale published bundle)."
+        type: string
+        default: ""
   workflow_call:
     inputs:
       ref:
@@ -42,6 +51,11 @@ on:
 
 permissions:
   contents: read
+
+# Cancel a PR's in-flight run when it's superseded by a new push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   xmake:
@@ -87,6 +101,7 @@ jobs:
           # Drop-in replacement for the lib/commonlibsse-ng source tree: same xmake.lua
           # (auto-detects the shipped lib), headers, plugin-rule templates, VR headers.
           Copy-Item xmake.lua, PREBUILT.md "$stage/"
+          Copy-Item licenses/LICENSE-hde64.txt "$stage/"
           Copy-Item -Recurse include "$stage/include"
           Copy-Item -Recurse res "$stage/res"
           Copy-Item -Recurse extern/openvr/headers "$stage/extern/openvr/headers"
@@ -135,8 +150,11 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write # only used when attach_tag is set
+    # vcpkg `files` binary cache; shares main_ci.yml's msvc key namespace since this
+    # job resolves the identical port set (see main_ci.yml for FORCE_SYSTEM_BINARIES).
     env:
-      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+      VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/vcpkg_binary_cache,readwrite"
+      VCPKG_FORCE_SYSTEM_BINARIES: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -181,31 +199,44 @@ jobs:
       # the compiler — the set of fetched assets only changes when deps or
       # the baseline change, so this survives VS toolset drift.
       - name: Cache vcpkg downloads (trusted, restore + save)
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/vcpkg_downloads
-          key: ${{ runner.os }}-vcpkg-downloads-${{ hashFiles('vcpkg.json') }}
+          key: ${{ runner.os }}-vcpkg-downloads-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
           restore-keys: |
             ${{ runner.os }}-vcpkg-downloads-
 
-      - name: Restore vcpkg downloads (untrusted PR, restore-only)
-        if: github.event_name == 'pull_request'
+      - name: Restore vcpkg downloads (fork PR, restore-only)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
         uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/vcpkg_downloads
-          key: ${{ runner.os }}-vcpkg-downloads-${{ hashFiles('vcpkg.json') }}
+          key: ${{ runner.os }}-vcpkg-downloads-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
           restore-keys: |
             ${{ runner.os }}-vcpkg-downloads-
 
-      # x-gha reads the Actions cache endpoint from these two variables, which GitHub only
-      # exposes to the github-script runtime — re-export them so vcpkg sees them.
-      - name: Enable vcpkg GitHub Actions binary cache
-        uses: actions/github-script@v7
+      # vcpkg binary (built-package) cache. Same trusted-write / untrusted-restore split
+      # as the downloads cache above — only a fork PR is restore-only.
+      - name: Cache vcpkg binary packages (trusted, restore + save)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/cache@v4
         with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+          path: ${{ github.workspace }}/vcpkg_binary_cache
+          key: ${{ runner.os }}-vcpkg-binpkgs-x64-windows-static-md-msvc-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-binpkgs-x64-windows-static-md-msvc-
+            ${{ runner.os }}-vcpkg-binpkgs-x64-windows-static-md-
+
+      - name: Restore vcpkg binary packages (fork PR, restore-only)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_binary_cache
+          key: ${{ runner.os }}-vcpkg-binpkgs-x64-windows-static-md-msvc-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-binpkgs-x64-windows-static-md-msvc-
+            ${{ runner.os }}-vcpkg-binpkgs-x64-windows-static-md-
 
       # Pre-install vcpkg deps via a CMake configure, wrapped in retry. This
       # is the only step that hits the network for vcpkg ports/tools, so a
@@ -246,6 +277,7 @@ jobs:
           # openvr_api.lib is linked PUBLIC by the IMPORTED target, so it ships in the bundle.
           Copy-Item extern/openvr/lib/win64/openvr_api.lib "$stage/lib/"
           Copy-Item PREBUILT.md "$stage/"
+          Copy-Item licenses/LICENSE-hde64.txt "$stage/"
           # Stamp the toolset version (Prebuilt.cmake's compatibility gate); the file-version
           # resource, not the usage banner, is locale-independent and matches CMake's own format.
           $clPath = (Get-Command cl.exe -ErrorAction Stop).Source

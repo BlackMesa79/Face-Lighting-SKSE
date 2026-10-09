@@ -1,6 +1,46 @@
 # Face Lighting SKSE 开发交接
 
-更新时间：2026-10-04（Asia/Hong_Kong）。用于切换账号后继续开发。
+更新时间：2026-10-09（Asia/Hong_Kong）。用于切换账号后继续开发。
+
+2026-10-09 GitHub 同步：用户明确授权提交并推送当前代码及 V2 双语对接文档，供 Nexus 私信提供 GitHub 链接。同步范围包含此前未提交的 0.9.5 CommonLib v11.0.0 升级、0.9.6 配置/个人开关修复、0.9.7 V2 与发布记录；V1 头文件保持不变。目标 origin/main，原远端为 88f8512，采用普通快进推送，不重写历史。构建与 17 项测试已通过，本轮未改运行逻辑。正式发布 ZIP 保留，未上传 Nexus。
+
+2026-10-09 最新发布准备：用户确认 V2 开发构建游戏内测试未发现问题，授权打包为 0.9.7 等待反馈。资源版本 0.9.7.0，日志标识 0.9.7；V1/V2 实现与依赖 pin 不变。本轮仅版本、英文/中文接入说明、readme 和简短 changelog 更新；不据本地游戏回归宣称 CCC 调用方联测完成。安装 ZIP 仍仅 DLL、两种语言、根 readme.txt（含许可），不附初始 INI；对应源码 ZIP 和校验和位于 build/releases/0.9.7。历史正式包不替换，未要求 GitHub 推送或直接上传 Nexus。
+
+0.9.7.0 正式构建与 17 项测试通过，V1 头文件未改，DLL 与语言已部署且原配置未覆盖。DLL 本地/部署 SHA256：C213CADA82077004110F4B3735DAEDD858FFCEDB8590762A7453C9551ABF3E0C。安装/源码包通过脚本逐文件校验；源码包检查 V1/V2 头文件、会话实现、双语文档、可编译示例和新增测试均收录，原 0.9.6 发布 ZIP 校验未变。Nexus 上传由用户进行，未提交/推送。
+
+2026-10-08 最新开发：用户要求实现公开 API V2、保留 V1、提供 CCC 作者用英文和自用中文文档，最后审查。已增加独立 FaceLightingAPIV2.h / TemporaryLightSession.h；原 FaceLightingAPI.h 完全未改。FaceLighting_GetAPI(1) 原 64 字节表保持，(2) 新 80 字节表含原 v1 指针。V2 主线程 ResolveActor（含玩家引用 0x14）、Begin/Update/Renew/End/Query、GetEnvironment；一个外部租约、最多 4 参与者（含玩家），默认 5 秒墙钟租期、1～30 可设。全快照原子复制/验证，超时/读档/加载/目标失效清理；临时源高于原对话/随从/指定，按 Actor 复用光源、不写 INI 或名单。玩家未列入则走普通需求；个人环境门控由 CCC 自己决定，死亡/潜行/第一人称许可仍优先。参数支持开关、RGB/色温、强度、手动范围、角色朝向/头骨偏移、0～3 秒发光过渡，参数值更新不插值。End/暂停/空快照立即释放恢复；平滑结束需先 enabled=0 保活等待淡出。
+
+英文 docs/public-api-v2-en.md、中文 docs/public-api-v2-zh-CN.md，可编译示例 docs/examples/ccc-face-lighting-v2.cpp 已纳入 ABI 测试构建。环境查询仅玩家缓存，filtered 需启动时已有实时排除采集（仍仅 1.6.1170），没有强制引擎刷新或偷偷安装 hook。配置预览压制外部渲染，恢复/Begin 写入 BusyPreview；暂停/控制台阻止活跃写入，续租/暂停/结束允许。CCC 需主动 End，挂起游戏期间兜底随游戏主线程恢复执行。玩家对话策略记录临时会话归属，避免会话先结束、菜单后关闭时改写玩家原开关。
+
+静态审查及回归完成，详见 docs/api-v2-review.md；本轮无子代理，无仍待修复的高/中优先级发现，实际 CCC 游戏接入仍待联测。xmake build --all 与 17 个测试通过（新增 TemporarySessionTests），V1/V2 实际 DLL 表/版本/线程烟测、SE/AE/1.7 布局、RGB、租约、原子快照、来源仲裁和原功能回归通过。当前本地测试标识 0.9.6-api-v2-test.1，资源版本仍 0.9.6.0；DLL/语言自动部署且配置未覆盖，DLL SHA256：A8644BE305F02A41DF71F7E31B1FFE8A302A19274BF42F1324A4C4F28B6BB93C。固定副本 build/experiments/api-v2-test.1/FaceLighting.dll。正式 build/releases/0.9.6 安装/源码 ZIP 校验未变，未重包/推送/上传，也未修改 CCC 工程。
+
+2026-10-08 最新发布准备：用户确认个人开关调整本地测试无问题，授权打包发布等待反馈。版本升至 0.9.6，启动标识 0.9.6，包含个人双来源同步与配置绝对 Unicode 路径/补父目录修复。运行逻辑与 CommonLib pin 不变。安装包仍仅 DLL、两种语言、根 readme.txt（合并许可），不附初始配置 INI；另提供对应当前源码 ZIP。简短中英文 changelog 位于 release-materials/0.9.6。正式产物保存于 build/releases/0.9.6，原 0.9.5 不覆盖。受影响用户复测仍待反馈，1.7 游戏验证状态不变。本轮未要求 GitHub 推送或直接上传 Nexus。
+
+0.9.6.0 正式构建及 16 项测试通过；DLL 和语言已自动部署，原配置未覆盖。DLL 本地/部署 SHA256 同为 71E429EA5A09D66CC1677BB30D0F5175C2AAE81998F894405338D251F60D81EA。安装/源码 ZIP 由 scripts/package-release.py 生成并逐文件校验，校验和另存 SHA256SUMS.txt。Nexus 上传由用户操作。
+
+2026-10-07 最新：针对“招募时随从无法关灯，解雇后正常”的报告，确认菜单/快捷键只改单一来源、而 API 已同步双来源的交互不一致。用户授权统一个人控制。指定与随从菜单个人开关、准星快捷键现复用 PersonalLightPolicy，同步已有指定记录和随从偏好；对话来源独立。快捷键以两组有效偏好判断开关，已识别随从不新增指定记录；开启时自动保存并启用对应组，关闭不改总开关。显式菜单添加仍注册指定记录并同步偏好；移除只删指定记录。菜单在总开关关闭或预览中允许编辑偏好。旧存档不自动迁移，下次个人操作同步。
+
+统一任务使用 SelectedNPCs 会话 epoch，锁顺序指定名单 → 随从偏好。暂存名单与偏好后才保存快捷键所需总开关，容量不足或保存失败不发布个人状态；API V1 ABI/总开关门控不变。中英文及 DLL 回退说明同步更新，详见 docs/personal-light-switches.md。构建与 16 项测试通过，新增来源不一致、仍在队伍中关闭/淡出清理、临时对话结束不恢复关灯偏好和失败回滚覆盖。游戏内复测及反馈用户根因确认仍待进行。
+
+当前构建标识 0.9.5-personal-light-test.1，资源版本仍 0.9.5.0，包含下述配置路径修复。DLL 与语言已自动部署，DLL 本地/部署 SHA256：B255C99B61027DEB6B4F5F0516FD8C5149C2DDAA5B143C7B19718B16FEC12F1F。原配置未覆盖，公开 0.9.5 压缩包未重打，未提交推送。此前 settings-path-fix 固定副本仍为旧的单来源控制测试 DLL。
+
+2026-10-07 当前最新：用户报告 0.9.5 / 1.6.1170 多次保存报 Windows error 3。错误确定是配置写入路径找不到，非渲染失败；此前相对 .\\Data\\SKSE\\Plugins\\FaceLighting.ini 依赖进程当前目录且不创建父目录，两项代码隐患已修正。配置路径由 GetModuleFileNameW(nullptr) 定位 SkyrimSE.exe 目录下的 Data，固定保存/读取目标，不使用 DLL 物理路径；改用 Unicode Profile API，保存前补父目录，失败日志含绝对路径/cwd/错误码，保留失败不发布新设置语义。SettingsTests 独立 test-only 路径注入，覆盖 Unicode 新目录无 INI、进程 cwd 改动但不写到另一个 INI、单键首次保存及目录被普通文件阻塞的回滚。报告用户实际触发原因仍需新日志确认，不能仅凭 error 3 宣称某插件改了 cwd。
+
+本轮为本地修复测试 DLL，资源版本仍 0.9.5.0，启动标识 0.9.5-settings-path-test.1；正式 0.9.5 发布 ZIP 未重新生成或替换，未提交推送。已有本地自动部署授权继续生效。
+
+最终构建/16 项测试通过，部署 DLL 与本地一致：5CF13C325F2A75A85216F5D8CBAFD52154B577985FCFF12371054DD1483549BE。供受影响用户复测的固定副本：build/experiments/settings-path-fix/FaceLighting.dll；替换后菜单保存、重启验证持久化，仍失败收集含 Settings path 和 path/cwd/error 的新日志。正式 0.9.5 安装/源码 ZIP 校验未变。
+
+2026-10-05 发布版最新：用户确认 1.6.1170 与收藏轮盘联动实测正常，授权将当前代码打包为 0.9.5，供 1.7 用户反馈。运行逻辑/依赖 pin 不变，仅版本与发布材料整理。1.5.97 保留支持但新版尚无游戏内复测；1.7.99/104 等待用户验证；实时排除仍仅 1.6.1170。发布包路径 build/releases/0.9.5；不附初始 INI，许可合并至 readme.txt，另提供对应源码包与 SHA256SUMS。本轮未要求上传 Nexus 或再次 GitHub 推送。下面实验版与待本地测试说明为历史。
+
+0.9.5.0 发布构建与 16 个测试通过，已自动部署，DLL 本地/部署 SHA256 同为 43D31B4727114DE4AEEA7AE442AA8ACD513FE542700B4CDB78D861F5348B3668；保留用户配置。release-materials/0.9.5 提供简短中英文 changelog。
+
+2026-10-05 当前最新：用户要求更新 CommonLibSSE-NG 以支持 1.7.99/1.7.104，先适配/review/实验版本地测试，再考虑公开给 1.7 用户。已创建 codex/commonlib-1-7-experimental（main 仍 88f8512），依赖固定至 v11.0.0 / 94faaed0c60eddd8347767f2d4d29a97c93bde8c，沿用 extern/CommonLibVR 路径；2776 个上游文件逐字节一致，另附 UPSTREAM_REVISION.txt。版本 0.9.5-experimental.1；日志记录游戏/候选/依赖版本。上游增加 AE 1.7 识别、地址库 v5、SKSE 元数据位及 PlayerCharacter +8 偏移访问器，应用继续使用现有运行时访问器与 0xAD 更新/0x99 死亡槽位。实时面光排除仍严格仅 1.6.1170，未尝试新版本代码补丁。
+
+完整源码构建与 16 个测试程序通过。新增 RuntimeCompatibilityTests 覆盖六运行时数据块、玩家偏移、光源数据、更新虚表、旧格式 1/2、新格式 5 的两版合成地址库、实际 DLL 的 v5/AE 元数据及 API 导出。ActorRuntimeTests 添加两版 1.7，并修正模拟存储不足问题（跨版本 sizeof(Actor) 不是完整原生大小，改为 0x300）。review 与测试清单见 docs/commonlib-1.7-experimental-review.md。编译成功不代表 1.7 游戏内验证；CS/Menu Framework 实际对应版本也需用户测试。
+
+上游当前许可已从 MIT 改为 GPL-3.0-or-later 加 Modding/Linking Exceptions；打包/开发安装脚本已跟进 COPYING.txt、EXCEPTIONS.md 和保留的 MIT/HDE64 许可，运行包仍仅一个 readme.txt 收录全部文本。本项目原创代码维持 GPL-3.0-only。
+
+候选 DLL 已自动部署，本地/部署 SHA256 同为 174CAB91FD44B0237FAEB9AC7791DFEB9C19854CFAEEB4CCA7AC6194840CBA38，配置未编辑。打包 scripts/package-release.py 将本候选写入 build/experiments/0.9.5-experimental.1（安装/源码 ZIP、SHA256SUMS），不覆盖 build/releases/0.9.4。旧 DLL/语言备份在 build/experiments/backup-0.9.4，完整旧安装包也可回滚。当前实验变更仅本地，未提交/推送、未公开发布；用户本地测试是下一步。
 
 2026-10-04 GitHub 同步：用户明确要求推送当前代码并补齐此前未提交记录。本轮补全 CHANGELOG.md 中 0.9.0～0.9.4 的变更摘要，将 0.9.2/0.9.3 发布记录、SE 运行时修复和 0.9.4 功能分组提交到 main。未重建、倒签历史源码快照；当前源码才是 0.9.4。下方“未提交/推送”是同步前状态。正式运行包内容与已测 DLL 不变。
 

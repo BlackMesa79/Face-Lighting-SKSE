@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.9.7
+
+- Added API V2 for temporary conversation lighting, with per-actor color, brightness and placement controls.
+- Added session pause/resume and automatic cleanup; temporary requests preserve saved settings.
+- Retained API V1 compatibility for Favorite Wheel and existing integrations.
+
+## 0.9.6
+
+- Unified individual NPC/follower switches and hotkeys to prevent overlapping sources from keeping lights on.
+- Fixed configuration save-path handling, including missing folders and Unicode paths.
+- Dialogue lighting remains independent; existing settings and saves are retained.
+
+## 0.9.5
+
+- Updated CommonLibSSE-NG to v11.0.0 for Skyrim 1.7.99 / 1.7.104 compatibility; user testing on 1.7.x is pending.
+- Retained SE 1.5.97 support; Skyrim 1.6.1170 and Favorite Wheel integration passed local testing.
+- Live ambient exclusion remains limited to Skyrim 1.6.1170.
+
+## 0.9.5-experimental.1 (local test candidate)
+
+- Updated the vendored CommonLibSSE-NG snapshot to v11.0.0 for Skyrim 1.7.99 / 1.7.104.
+- Added cross-runtime layout, Address Library v5 and exported SKSE metadata regression checks.
+- Retained SE / AE behavior, public API V1 and the 1.6.1170-only live ambient exclusion gate.
+- Gameplay validation is pending; this candidate has not replaced the public 0.9.4 release.
+
 ## 0.9.4
 
 - Added a public API for Favorite Wheel and other SKSE plugins.

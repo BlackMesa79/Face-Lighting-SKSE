@@ -7,6 +7,12 @@ namespace ColorTemperature {
         return csAvailable && globalLinear && (inverse || linearFlag);
     }
     struct RGB { float r, g, b; };
+    inline float LinearChannel(float value) {
+        return value <= 0.04045f ? value / 12.92f : std::pow((value + 0.055f) / 1.055f, 2.4f);
+    }
+    inline RGB ConvertSRGB(RGB color, bool linear) {
+        return linear ? RGB{LinearChannel(color.r), LinearChannel(color.g), LinearChannel(color.b)} : color;
+    }
     // Approximation based on Tanner Helland's temperature-to-sRGB fit:
     // https://tannerhelland.com/2012/09/18/convert-temperature-rgb-algorithm-code.html
     inline RGB Approximate(float kelvin) {
@@ -24,7 +30,7 @@ namespace ColorTemperature {
         // Neutralize the default to exactly the previous white light.
         const auto channel = [linear](float c, float w) {
             c = std::clamp(c / w, 0.0f, 1.0f);
-            return linear ? (c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f)) : c;
+            return linear ? LinearChannel(c) : c;
         };
         return {channel(rgb.r, white.r), channel(rgb.g, white.g), channel(rgb.b, white.b)};
     }

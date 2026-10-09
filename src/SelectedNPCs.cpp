@@ -24,6 +24,20 @@ namespace {
     bool Eligible(RE::Actor* actor) {
         return ActorRuntime::Eligible(actor);
     }
+    // Caller holds mutex. All personal controls use the same atomic dual-source policy.
+    template <class SetFollower>
+    FaceLightingAPI::Result SetPersonal(RE::FormID id, bool follower, bool enabled,
+        bool followerGroup, bool selectedGroup, SetFollower setFollower) {
+        using FaceLightingAPI::Result;
+        const auto result = PersonalLightPolicy::Set(records, id, follower,
+            Followers::PersonalEnabled(id), enabled, followerGroup, selectedGroup, setFollower);
+        if (result == Result::Ok || result == Result::NoChange)
+            for (auto& row : view.rows) if (row.id == id) row.enabled = enabled;
+        return result;
+    }
+    bool Applied(FaceLightingAPI::Result result) {
+        return result == FaceLightingAPI::Result::Ok || result == FaceLightingAPI::Result::NoChange;
+    }
     void Reset(SKSE::SerializationInterface*) {
         Followers::RevertPreferences();
         std::scoped_lock lock(mutex);
@@ -94,8 +108,10 @@ void SelectedNPCs::AddTarget(bool useConsole) {
         if (std::any_of(records.begin(), records.end(), [&](auto& row) { return row.id == id; })) {
             Notifications::Show(Localization::noticeAlreadyAdded, actor->GetName()); return;
         }
-        if (records.size() >= limit) { Notifications::Show(Localization::noticeListFull); return; }
-        records.push_back({id, 1});
+        // Explicit addition still registers teammates in the selected list.
+        if (!Applied(SetPersonal(id, false, true, true, true, Followers::SetPersonalNow))) {
+            Notifications::Show(Localization::noticeListFull); return;
+        }
         Notifications::Show(Localization::noticeSelectedAdded, actor->GetName());
     });
 }
@@ -109,21 +125,49 @@ void SelectedNPCs::ToggleCrosshairTarget() {
         const auto actor = ref ? ref->As<RE::Actor>() : nullptr;
         if (!Eligible(actor)) { Notifications::Show(Localization::noticeNoTarget); return; }
         auto values = Settings::Get();
-        auto updated = records;
-        const bool added = std::none_of(records.begin(), records.end(), [actor](const auto& row) { return row.id == actor->GetFormID(); });
-        if (!SelectedNPCRecord::Toggle(updated, actor->GetFormID(), values.selected.enabled)) {
-            Notifications::Show(Localization::noticeListFull); return;
+        const auto id = actor->GetFormID();
+        const bool follower = actor->IsPlayerTeammate();
+        const bool registered = std::any_of(records.begin(), records.end(), [id](const auto& row) { return row.id == id; });
+        const bool enabled = !PersonalLightPolicy::Enabled(records, id, follower,
+            Followers::PersonalEnabled(id), values.follower.enabled, values.selected.enabled);
+        // Auto-enable the relevant group only when turning a personal light on.
+        auto& group = follower ? values.follower.enabled : values.selected.enabled;
+        const bool saveGroup = enabled && !group;
+        if (saveGroup) group = true;
+        bool saveFailed = false;
+        const auto result = SetPersonal(id, follower, enabled, true, true, [&](auto target, auto on) {
+            return Followers::SetPersonalWithCommit(target, on, [&] {
+                if (!saveGroup) return true;
+                saveFailed = !Settings::Save(values);
+                return !saveFailed;
+            });
+        });
+        if (!Applied(result)) {
+            Notifications::Show(saveFailed ? Localization::noticeSaveFailed : Localization::noticeListFull); return;
         }
-        if (!values.selected.enabled) {
-            values.selected.enabled = true;
-            if (!Settings::Save(values)) { Notifications::Show(Localization::noticeSaveFailed); return; }
-        }
-        records = std::move(updated);
-        const auto row = std::find_if(records.begin(), records.end(), [actor](const auto& entry) { return entry.id == actor->GetFormID(); });
-        Notifications::Show(added ? Localization::noticeSelectedAdded : row->enabled ? Localization::noticeSelectedOn : Localization::noticeSelectedOff, actor->GetName());
+        const bool added = enabled && !follower && !registered;
+        Notifications::Show(added ? Localization::noticeSelectedAdded : enabled ? Localization::noticeSelectedOn : Localization::noticeSelectedOff, actor->GetName());
     });
 }
-void SelectedNPCs::SetEnabled(RE::FormID id, bool enabled) { Queue([id, enabled] { for (auto& row : records) if (row.id == id) row.enabled = enabled; }); }
+void SelectedNPCs::SetEnabled(RE::FormID id, bool enabled) {
+    Queue([id, enabled] {
+        if (std::none_of(records.begin(), records.end(), [id](const auto& row) { return row.id == id; })) return;
+        // A menu checkbox edits preferences even if its global group is off or previewed.
+        if (!Applied(SetPersonal(id, false, enabled, true, true, Followers::SetPersonalNow)))
+            Notifications::Show(Localization::noticeSaveFailed);
+    });
+}
+void SelectedNPCs::SetFollowerEnabled(RE::FormID id, bool enabled) {
+    Queue([id, enabled] {
+        const auto followers = Followers::Snapshot();
+        const auto row = std::find_if(followers.begin(), followers.end(), [id](const auto& value) { return value.id == id; });
+        if (row == followers.end()) return;
+        if (!Applied(SetPersonal(id, true, enabled, true, true, Followers::SetPersonalNow))) {
+            Notifications::Show(Localization::noticeSaveFailed); return;
+        }
+        Notifications::Show(enabled ? Localization::noticeFollowerOn : Localization::noticeFollowerOff, row->name);
+    });
+}
 std::optional<bool> SelectedNPCs::PersonalEnabled(RE::FormID id) {
     std::scoped_lock lock(mutex);
     for (const auto& row : records) if (row.id == id) return row.enabled != 0;
@@ -136,12 +180,8 @@ FaceLightingAPI::Result SelectedNPCs::SetPersonalNow(RE::Actor* actor, bool enab
     if (!Eligible(actor)) return Result::InvalidTarget;
     const auto settings = Settings::Get();
     const auto id = actor->GetFormID();
-    const auto result = PersonalLightPolicy::Set(records, id, actor->IsPlayerTeammate(),
-        Followers::PersonalEnabled(id), enabled, settings.follower.enabled, settings.selected.enabled,
-        Followers::SetPersonalNow);
-    if (result == Result::Ok || result == Result::NoChange)
-        for (auto& row : view.rows) if (row.id == id) row.enabled = enabled;
-    return result;
+    return SetPersonal(id, actor->IsPlayerTeammate(), enabled, settings.follower.enabled,
+        settings.selected.enabled, Followers::SetPersonalNow);
 }
 std::vector<RE::ActorHandle> SelectedNPCs::Update() {
     std::scoped_lock lock(mutex);

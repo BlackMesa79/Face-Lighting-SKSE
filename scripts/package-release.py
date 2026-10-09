@@ -30,12 +30,17 @@ def package_source(version, destination):
         for name in selected:
             assert z.read(prefix + name) == (ROOT / name).read_bytes()
         for required in ('xmake.lua', 'src/PublicAPI.cpp', 'include/FaceLightingAPI.h',
-                         'LICENSE.txt', 'extern/CommonLibVR/LICENSE'):
+                         'include/FaceLightingAPIV2.h', 'include/TemporaryLightSession.h',
+                         'docs/public-api-v2-en.md', 'docs/public-api-v2-zh-CN.md',
+                         'docs/examples/ccc-face-lighting-v2.cpp', 'tests/TemporarySessionTests.cpp',
+                         'LICENSE.txt', 'extern/CommonLibVR/COPYING.txt',
+                         'extern/CommonLibVR/EXCEPTIONS.md'):
             assert prefix + required in z.namelist()
     print(f'{archive}: {len(selected)} source files, verified')
 
 def package(version, dll):
-    destination = ROOT / 'build/releases' / (version.removesuffix('.0'))
+    experimental = 'experimental' in version
+    destination = ROOT / ('build/experiments' if experimental else 'build/releases') / (version.removesuffix('.0'))
     destination.mkdir(parents=True, exist_ok=True)
     intro = f'''Face Lighting SKSE {version}
 Copyright (C) 2026 BlackMesa79
@@ -46,15 +51,29 @@ Requires matching Address Library; SKSE Menu Framework provides the menu.
 Community Shaders is optional. Preserve existing INI and SKSE co-saves on upgrade.
 No initial FaceLighting.ini is bundled. Missing settings use built-in defaults;
 saving settings in the menu creates the INI. Existing configurations are retained.
-L toggles player lighting; Shift+L adds/toggles the NPC under the crosshair.
+L toggles player lighting; Shift+L toggles the aimed NPC/follower's personal light.
+Ordinary NPCs are added to the selected list; teammates use follower preferences.
+Personal switches synchronize follower and selected sources; dialogue is separate.
 Settings save to INI; NPC lists and follower preferences require a game save.
+API V2 provides temporary conversation lighting; API V1 remains compatible.
+Other plugins must implement API calls; installing this update alone does not enable CCC integration.
 Live-exclusion ambient control requires the verified Skyrim 1.6.1170 layout.
-No VR or Skyrim 1.7.x support. See the mod page for features and compatibility.
+Targets Skyrim 1.5.97, 1.6.1170, 1.7.99 and 1.7.104; no VR support.
+SE 1.5.97 support is retained; this update has not been gameplay-retested on SE.
+Skyrim 1.6.1170 and Favorite Wheel integration passed local gameplay testing.
+Skyrim 1.7.99 / 1.7.104 require matching SKSE64 and Address Library v5;
+gameplay validation on 1.7.x is pending user reports.
+{('Experimental local test candidate.' if experimental else '')}
 
 安装后通过 SKSE 启动，需要匹配的 Address Library，菜单需要 SKSE Menu Framework。
-升级保留原 INI 与 .skse 存档。L 切换玩家面光，Shift+L 添加/切换准星 NPC。
+升级保留原 INI 与 .skse 存档。L 切换玩家面光，Shift+L 切换准星 NPC 或随从面光。
+普通 NPC 加入指定名单，队友使用随从偏好；个人开关同步两种来源，对话面光独立。
 安装包不附带初始配置 INI；缺失时使用内置默认值，在菜单保存设置后生成。
 名单与随从开关需保存游戏。实时排除自动面光仅支持已核验的 1.6.1170 布局。
+API V2 提供临时对话光照，保留 V1；其他模组需接入调用，安装本版不等于自动启用 CCC 联动。
+保留 1.5.97 支持，新版尚未在 SE 游戏内复测；1.6.1170 与收藏轮盘联动已本地实测通过。
+1.7.99 / 1.7.104 需匹配的 SKSE64、地址库 v5 及兼容菜单框架，游戏内表现待用户验证。
+其他版本可测试固定补偿；实时排除不会在 1.7.x 启用。不支持 VR。
 
 This program is free software under GNU GPL version 3, without any warranty.
 The complete GPL text and third-party license notices follow below.
@@ -68,7 +87,10 @@ the repository main branch may contain later development.
 '''
     sections = [('GNU GENERAL PUBLIC LICENSE v3', 'LICENSE.txt'),
                 ('THIRD-PARTY ATTRIBUTIONS (paths refer to source checkout)', 'THIRD_PARTY_NOTICES.md'),
-                ('CommonLibSSE NG / CommonLibVR — MIT', 'extern/CommonLibVR/LICENSE'),
+                ('CommonLibSSE-NG — GPL-3.0-or-later', 'extern/CommonLibVR/COPYING.txt'),
+                ('CommonLibSSE-NG — additional permissions', 'extern/CommonLibVR/EXCEPTIONS.md'),
+                ('CommonLibSSE-NG — retained original MIT notice', 'extern/CommonLibVR/licenses/LICENSE-MIT.txt'),
+                ('CommonLibSSE-NG — HDE64 notice', 'extern/CommonLibVR/licenses/LICENSE-hde64.txt'),
                 ('SKSE Menu Framework API — LGPL 2.1', 'extern/SKSEMenuFrameworkAPI/LICENSE'),
                 ('HDE64 / MinHook — upstream notices', 'extern/hde64/LICENSE.txt')]
     readme = intro
@@ -99,5 +121,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dll', type=Path, default=ROOT / 'build/windows/x64/release/FaceLighting.dll')
     args = parser.parse_args()
-    version = re.search(r'set_version\("([\d.]+)"\)', (ROOT / 'xmake.lua').read_text(encoding='utf-8')).group(1)
+    version = re.search(r'set_version\("([^"\r\n]+)"\)', (ROOT / 'xmake.lua').read_text(encoding='utf-8')).group(1)
     package(version, args.dll)

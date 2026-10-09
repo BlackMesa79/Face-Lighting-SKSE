@@ -15,12 +15,15 @@ namespace RE
 
 		// override (MapInputHandler)
 		bool CanProcess(InputEvent* a_event) override;  // 01
-#ifndef SKYRIM_CROSS_VR
+#ifdef EXCLUSIVE_SKYRIM_VR
 		bool ProcessThumbstick(ThumbstickEvent* a_event) override;  // 03 (VR 06)
 #endif
 
 		// members
 		BSTPoint2<float> unk18;  // 18
+#ifdef EXCLUSIVE_SKYRIM_VR
+		std::uint8_t unkVr20[0x8];
+#endif
 	};
-	static_assert(sizeof(MapMoveHandler) == 0x20);
+	STATIC_ASSERT_SIZE(MapMoveHandler, 0x20, 0x28);
 }

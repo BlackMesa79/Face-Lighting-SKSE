@@ -27,6 +27,17 @@ int main() {
         Check(!state.Update(false, true, true, true));
         Check(!state.Update(true, true, true, true));
         Check(state.Update(false, true, true, true) == false);
+        // A V2-owned conversation never writes player preferences, including
+        // when the lease ends before DialogueMenu closes.
+        state.Reset();
+        Check(!state.Update(true, true, true, false, true));
+        Check(!state.Update(true, true, true, true, false));
+        Check(!state.Update(false, true, true, true, false));
+        Check(state.Update(true, true, true, false) == true);
+        state.Reset();
+        Check(!state.Update(true, true, true, true, true));
+        state.Reset();
+        Check(state.Update(true, true, true, false) == true);
         std::cout << "Dialogue option combinations, manual changes and reset checks passed.\n";
     } catch (const std::exception& e) { std::cerr << e.what(); return 1; }
 }

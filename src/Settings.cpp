@@ -5,6 +5,7 @@
 #include <cmath>
 #include <mutex>
 #include <optional>
+#include <filesystem>
 #include "Settings.h"
 #include "Hotkeys.h"
 #include "Localization.h"
@@ -13,7 +14,55 @@ namespace {
     std::mutex settingsMutex;
     Settings::Values current;
     std::optional<Settings::Values> preview;
-    constexpr auto path = ".\\Data\\SKSE\\Plugins\\FaceLighting.ini";
+    std::optional<std::filesystem::path> configPath;
+    std::wstring Wide(std::string_view ascii) { return {ascii.begin(), ascii.end()}; }
+    std::string UTF8(std::wstring_view text) {
+        if (text.empty()) return {};
+        const int size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
+        std::string result(size, '\0');
+        WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), result.data(), size, nullptr, nullptr);
+        return result;
+    }
+    const std::filesystem::path& ConfigPath() {
+        if (!configPath) {
+            // Resolve against SkyrimSE.exe, never a mutable process working directory
+            // or this DLL's physical mod-manager installation directory.
+            std::wstring executable(32768, L'\0');
+            const auto size = GetModuleFileNameW(nullptr, executable.data(), static_cast<DWORD>(executable.size()));
+            if (!size || size >= executable.size()) {
+                configPath = std::filesystem::path{};
+                SKSE::log::error("Could not resolve executable path for settings, Windows error {}", GetLastError());
+            } else {
+                executable.resize(size);
+                configPath = std::filesystem::path(executable).parent_path() / L"Data/SKSE/Plugins/FaceLighting.ini";
+            }
+        }
+        return *configPath;
+    }
+    std::string ReadText(const char* key, const char* fallback = "") {
+        if (ConfigPath().empty()) return fallback;
+        wchar_t buffer[128]{};
+        GetPrivateProfileStringW(L"General", Wide(key).c_str(), Wide(fallback).c_str(), buffer, 128, ConfigPath().c_str());
+        return UTF8(buffer);
+    }
+    UINT ReadProfileInt(const char* key, INT fallback) {
+        return ConfigPath().empty() ? fallback :
+            GetPrivateProfileIntW(L"General", Wide(key).c_str(), fallback, ConfigPath().c_str());
+    }
+    bool EnsureConfigDirectory() {
+        const auto& path = ConfigPath();
+        if (path.empty()) { SetLastError(ERROR_PATH_NOT_FOUND); return false; }
+        std::error_code error;
+        std::filesystem::create_directories(path.parent_path(), error);
+        if (error) { SetLastError(static_cast<DWORD>(error.value())); return false; }
+        return true;
+    }
+    void SaveFailure(const char* operation, DWORD error) {
+        std::error_code cwdError;
+        const auto cwd = std::filesystem::current_path(cwdError);
+        SKSE::log::error("Failed to save {}: path='{}', cwd='{}', Windows error {}",
+            operation, UTF8(ConfigPath().wstring()), cwdError ? "unavailable" : UTF8(cwd.wstring()), error);
+    }
 
     void Publish(const Settings::Values& values) {
         current = values;
@@ -22,8 +71,7 @@ namespace {
     }
 
     int ReadInt(const char* key, int fallback) {
-        char buffer[128]{};
-        GetPrivateProfileStringA("General", key, "", buffer, sizeof(buffer), path);
+        const auto buffer = ReadText(key);
         std::string_view text(buffer);
         if (text.empty()) return fallback;
         int result{};
@@ -36,8 +84,7 @@ namespace {
     }
 
     float ReadFloat(const char* key, float fallback) {
-        char buffer[128]{};
-        GetPrivateProfileStringA("General", key, "", buffer, sizeof(buffer), path);
+        const auto buffer = ReadText(key);
         std::string_view text(buffer);
         if (text.empty()) return fallback;
         float result{};
@@ -146,22 +193,21 @@ bool Settings::HasPreview() {
 void Settings::Load() {
     std::scoped_lock lock(settingsMutex);
     Values values;
-    char language[32]{};
-    GetPrivateProfileStringA("General", "Language", "auto", language, sizeof(language), path);
-    values.language = Localization::NormalizeCode(language);
-    values.enabled = GetPrivateProfileIntA("General", "Enabled", 0, path) != 0;
-    values.enablePlayerOnDialogue = GetPrivateProfileIntA("General", "EnablePlayerOnDialogue", 1, path) != 0;
-    values.disablePlayerAfterDialogue = GetPrivateProfileIntA("General", "DisablePlayerAfterDialogue", 0, path) != 0;
-    values.followHeadRotation = GetPrivateProfileIntA("General", "FollowHeadRotation", 0, path) != 0;
-    values.dialogue.followHeadRotation = GetPrivateProfileIntA("General", "DialogueFollowHeadRotation", 0, path) != 0;
-    values.debugLogging = GetPrivateProfileIntA("General", "DebugLogging", 0, path) != 0;
-    values.csMode = GetPrivateProfileIntA("General", "CSMode", 1, path);
-    values.csGlobalLinear = GetPrivateProfileIntA("General", "CSGlobalLinearLighting", 0, path) != 0;
-    values.csInverseSquare = GetPrivateProfileIntA("General", "CSInverseSquare", 0, path) != 0;
-    values.csLinear = GetPrivateProfileIntA("General", "CSLinear", 0, path) != 0;
+    SKSE::log::info("Settings path: {}", UTF8(ConfigPath().wstring()));
+    values.language = Localization::NormalizeCode(ReadText("Language", "auto"));
+    values.enabled = ReadProfileInt("Enabled", 0) != 0;
+    values.enablePlayerOnDialogue = ReadProfileInt("EnablePlayerOnDialogue", 1) != 0;
+    values.disablePlayerAfterDialogue = ReadProfileInt("DisablePlayerAfterDialogue", 0) != 0;
+    values.followHeadRotation = ReadProfileInt("FollowHeadRotation", 0) != 0;
+    values.dialogue.followHeadRotation = ReadProfileInt("DialogueFollowHeadRotation", 0) != 0;
+    values.debugLogging = ReadProfileInt("DebugLogging", 0) != 0;
+    values.csMode = ReadProfileInt("CSMode", 1);
+    values.csGlobalLinear = ReadProfileInt("CSGlobalLinearLighting", 0) != 0;
+    values.csInverseSquare = ReadProfileInt("CSInverseSquare", 0) != 0;
+    values.csLinear = ReadProfileInt("CSLinear", 0) != 0;
     values.radius = ReadFloat("Radius", values.radius);
-    values.manualRange = GetPrivateProfileIntA("General", "ManualInverseRange", 0, path) != 0;
-    values.dialogue.manualRange = GetPrivateProfileIntA("General", "DialogueManualInverseRange", 0, path) != 0;
+    values.manualRange = ReadProfileInt("ManualInverseRange", 0) != 0;
+    values.dialogue.manualRange = ReadProfileInt("DialogueManualInverseRange", 0) != 0;
     values.inverseRadius = ReadFloat("InverseRadius", values.inverseRadius);
     values.dialogue.inverseRadius = ReadFloat("DialogueInverseRadius", values.dialogue.inverseRadius);
     values.intensity = ReadFloat("Intensity", values.intensity);
@@ -174,21 +220,21 @@ void Settings::Load() {
     values.dialogue.offsetY = ReadFloat("DialogueOffsetY", values.dialogue.offsetY);
     values.dialogue.offsetZ = ReadFloat("DialogueOffsetZ", values.dialogue.offsetZ);
     values.dialogue.duration = ReadFloat("DialogueDuration", values.dialogue.duration);
-    values.dialogue.enabled = GetPrivateProfileIntA("General", "DialogueEnabled", 1, path) != 0;
-    values.dialogue.transition = GetPrivateProfileIntA("General", "DialogueTransition", 1, path) != 0;
-    values.dialogue.csInverseSquare = GetPrivateProfileIntA("General", "DialogueCSInverseSquare", 1, path) != 0;
-    values.dialogue.csLinear = GetPrivateProfileIntA("General", "DialogueCSLinear", 1, path) != 0;
-    values.hotkey = GetPrivateProfileIntA("General", "PlayerHotkey", 38, path);
-    values.selectedHotkey = GetPrivateProfileIntA("General", "SelectedHotkey", 38, path);
-    values.selectedHotkeyModifier = GetPrivateProfileIntA("General", "SelectedHotkeyModifier", 1, path);
-    values.gamepadKey = GetPrivateProfileIntA("General", "PlayerGamepadKey", 0, path);
-    values.gamepadModifier = GetPrivateProfileIntA("General", "PlayerGamepadModifier", 0, path);
-    values.hotkeyModifier = GetPrivateProfileIntA("General", "PlayerHotkeyModifier", 0, path);
-    values.hideWhileSneaking = GetPrivateProfileIntA("General", "HidePlayerWhileSneaking", 1, path) != 0;
+    values.dialogue.enabled = ReadProfileInt("DialogueEnabled", 1) != 0;
+    values.dialogue.transition = ReadProfileInt("DialogueTransition", 1) != 0;
+    values.dialogue.csInverseSquare = ReadProfileInt("DialogueCSInverseSquare", 1) != 0;
+    values.dialogue.csLinear = ReadProfileInt("DialogueCSLinear", 1) != 0;
+    values.hotkey = ReadProfileInt("PlayerHotkey", 38);
+    values.selectedHotkey = ReadProfileInt("SelectedHotkey", 38);
+    values.selectedHotkeyModifier = ReadProfileInt("SelectedHotkeyModifier", 1);
+    values.gamepadKey = ReadProfileInt("PlayerGamepadKey", 0);
+    values.gamepadModifier = ReadProfileInt("PlayerGamepadModifier", 0);
+    values.hotkeyModifier = ReadProfileInt("PlayerHotkeyModifier", 0);
+    values.hideWhileSneaking = ReadProfileInt("HidePlayerWhileSneaking", 1) != 0;
     values.temperature = ReadFloat("Temperature", values.temperature);
     values.dialogue.temperature = ReadFloat("DialogueTemperature", values.dialogue.temperature);
-    values.selected.followHeadRotation = GetPrivateProfileIntA("General", "SelectedFollowHeadRotation", 0, path) != 0;
-    values.selected.manualRange = GetPrivateProfileIntA("General", "SelectedManualInverseRange", 0, path) != 0;
+    values.selected.followHeadRotation = ReadProfileInt("SelectedFollowHeadRotation", 0) != 0;
+    values.selected.manualRange = ReadProfileInt("SelectedManualInverseRange", 0) != 0;
     values.selected.inverseRadius = ReadFloat("SelectedInverseRadius", values.selected.inverseRadius);
     values.selected.radius = ReadFloat("SelectedRadius", values.selected.radius);
     values.selected.intensity = ReadFloat("SelectedIntensity", values.selected.intensity);
@@ -196,13 +242,13 @@ void Settings::Load() {
     values.selected.offsetY = ReadFloat("SelectedOffsetY", values.selected.offsetY);
     values.selected.offsetZ = ReadFloat("SelectedOffsetZ", values.selected.offsetZ);
     values.selected.duration = ReadFloat("SelectedDuration", values.selected.duration);
-    values.selected.enabled = GetPrivateProfileIntA("General", "SelectedEnabled", 1, path) != 0;
-    values.selected.transition = GetPrivateProfileIntA("General", "SelectedTransition", 1, path) != 0;
-    values.selected.csInverseSquare = GetPrivateProfileIntA("General", "SelectedCSInverseSquare", 1, path) != 0;
-    values.selected.csLinear = GetPrivateProfileIntA("General", "SelectedCSLinear", 1, path) != 0;
+    values.selected.enabled = ReadProfileInt("SelectedEnabled", 1) != 0;
+    values.selected.transition = ReadProfileInt("SelectedTransition", 1) != 0;
+    values.selected.csInverseSquare = ReadProfileInt("SelectedCSInverseSquare", 1) != 0;
+    values.selected.csLinear = ReadProfileInt("SelectedCSLinear", 1) != 0;
     values.selected.temperature = ReadFloat("SelectedTemperature", values.selected.temperature);
-    values.follower.followHeadRotation = GetPrivateProfileIntA("General", "FollowerFollowHeadRotation", 0, path) != 0;
-    values.follower.manualRange = GetPrivateProfileIntA("General", "FollowerManualInverseRange", 0, path) != 0;
+    values.follower.followHeadRotation = ReadProfileInt("FollowerFollowHeadRotation", 0) != 0;
+    values.follower.manualRange = ReadProfileInt("FollowerManualInverseRange", 0) != 0;
     values.follower.inverseRadius = ReadFloat("FollowerInverseRadius", values.follower.inverseRadius);
     values.follower.radius = ReadFloat("FollowerRadius", values.follower.radius);
     values.follower.intensity = ReadFloat("FollowerIntensity", values.follower.intensity);
@@ -210,18 +256,18 @@ void Settings::Load() {
     values.follower.offsetY = ReadFloat("FollowerOffsetY", values.follower.offsetY);
     values.follower.offsetZ = ReadFloat("FollowerOffsetZ", values.follower.offsetZ);
     values.follower.duration = ReadFloat("FollowerDuration", values.follower.duration);
-    values.follower.enabled = GetPrivateProfileIntA("General", "FollowerEnabled", 1, path) != 0;
-    values.follower.transition = GetPrivateProfileIntA("General", "FollowerTransition", 1, path) != 0;
-    values.follower.csInverseSquare = GetPrivateProfileIntA("General", "FollowerCSInverseSquare", 1, path) != 0;
-    values.follower.csLinear = GetPrivateProfileIntA("General", "FollowerCSLinear", 1, path) != 0;
+    values.follower.enabled = ReadProfileInt("FollowerEnabled", 1) != 0;
+    values.follower.transition = ReadProfileInt("FollowerTransition", 1) != 0;
+    values.follower.csInverseSquare = ReadProfileInt("FollowerCSInverseSquare", 1) != 0;
+    values.follower.csLinear = ReadProfileInt("FollowerCSLinear", 1) != 0;
     values.follower.temperature = ReadFloat("FollowerTemperature", values.follower.temperature);
-    values.firstPersonLight = GetPrivateProfileIntA("General", "FirstPersonLight", 0, path) != 0;
-    values.lightDiagnostics = GetPrivateProfileIntA("General", "LightDiagnostics", 0, path) != 0;
-    values.exclusionDiagnostics = GetPrivateProfileIntA("General", "ExclusionDiagnostics", 0, path) != 0;
-    values.playerTransition = GetPrivateProfileIntA("General", "PlayerTransition", 1, path) != 0;
+    values.firstPersonLight = ReadProfileInt("FirstPersonLight", 0) != 0;
+    values.lightDiagnostics = ReadProfileInt("LightDiagnostics", 0) != 0;
+    values.exclusionDiagnostics = ReadProfileInt("ExclusionDiagnostics", 0) != 0;
+    values.playerTransition = ReadProfileInt("PlayerTransition", 1) != 0;
     values.playerDuration = ReadFloat("PlayerDuration", values.playerDuration);
     values.ambientPollMode = ReadInt("AmbientPollMode", values.ambientPollMode);
-    values.ambientMode = GetPrivateProfileIntA("General", "AmbientMode", 0, path);
+    values.ambientMode = ReadProfileInt("AmbientMode", 0);
     values.ambientCompensation = ReadFloat("AmbientCompensation", values.ambientCompensation);
     values.ambientOnThreshold = ReadFloat("AmbientOnThreshold", values.ambientOnThreshold);
     values.ambientOffThreshold = ReadFloat("AmbientOffThreshold", values.ambientOffThreshold);
@@ -232,7 +278,7 @@ void Settings::Load() {
     values.dialogueAmbientOffThreshold = ReadFloat("DialogueAmbientOffThreshold", values.dialogueAmbientOffThreshold);
     values.dialogueAmbientDelay = ReadFloat("DialogueAmbientDelay", values.dialogueAmbientDelay);
     values.npcLightLimit = ReadInt("NPCLightLimit", values.npcLightLimit);
-    values.rosterNotifications = GetPrivateProfileIntA("General", "RosterNotifications", 1, path) != 0;
+    values.rosterNotifications = ReadProfileInt("RosterNotifications", 1) != 0;
     Publish(Normalize(values));
     SKSE::log::info("Settings loaded: enabled={}, radius={}, intensity={}", current.enabled, current.radius, current.intensity);
 }
@@ -333,9 +379,10 @@ bool Settings::Save(const Values& requested) {
     append("DialogueAmbientDelay", std::to_string(values.dialogueAmbientDelay));
     append("NPCLightLimit", std::to_string(values.npcLightLimit));
     append("RosterNotifications", values.rosterNotifications ? "1" : "0");
-    if (!WritePrivateProfileSectionA("General", section.c_str(), path)) {
+    if (!EnsureConfigDirectory() || !WritePrivateProfileSectionW(L"General", Wide(section).c_str(), ConfigPath().c_str())) {
+        const auto error = GetLastError();
         preview.reset();
-        SKSE::log::error("Failed to save FaceLighting settings, Windows error {}", GetLastError());
+        SaveFailure("FaceLighting settings", error);
         return false;
     }
     Publish(values);
@@ -346,14 +393,22 @@ bool Settings::Save(const Values& requested) {
 
 bool Settings::SetPlayerEnabled(bool enabled) {
     std::scoped_lock lock(settingsMutex);
-    if (current.enabled != enabled && !WritePrivateProfileStringA("General", "Enabled", enabled ? "1" : "0", path)) {
-        SKSE::log::error("Failed to save dialogue player light state, Windows error {}", GetLastError());
+    if (current.enabled != enabled && (!EnsureConfigDirectory() ||
+        !WritePrivateProfileStringW(L"General", L"Enabled", enabled ? L"1" : L"0", ConfigPath().c_str()))) {
+        SaveFailure("dialogue player light state", GetLastError());
         return false;
     }
     current.enabled = enabled;
     if (preview) preview->enabled = enabled;
     return true;
 }
+
+#ifdef FACE_LIGHTING_SETTINGS_TESTING
+void Settings::SetPathForTests(const std::filesystem::path& path) {
+    std::scoped_lock lock(settingsMutex);
+    configPath = std::filesystem::absolute(path);
+}
+#endif
 
 
 

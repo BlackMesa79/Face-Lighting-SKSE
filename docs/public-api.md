@@ -1,6 +1,8 @@
 # Face Lighting public API V1
 
-实现日期：2026-10-01。供收藏轮盘及其他 SKSE 插件调用；当前为本地开发构建，尚未随新的公开安装包发布。接口头文件为 `include/FaceLightingAPI.h`，不依赖 CommonLib、SKSE 头文件或链接库。
+2026-10-09：V1 头文件、64 字节函数表与获取方式保持兼容。0.9.7 新增独立 V2 临时会话表；CCC 接入见 [English](public-api-v2-en.md) / [中文](public-api-v2-zh-CN.md)。
+
+实现日期：2026-10-01，自 0.9.4 提供。供收藏轮盘及其他 SKSE 插件调用；接口头文件为 `include/FaceLightingAPI.h`，不依赖 CommonLib、SKSE 头文件或链接库。
 
 ## 获取接口
 
@@ -40,6 +42,8 @@ const FaceLightingAPI::Interface* FindFaceLighting() noexcept {
 `structSize` 使用头文件默认值，每个输出行也要初始化。保留字段必须为零，enabled 只接受 0/1；输出和请求内存由调用方维护。失败不发布部分输出；调用方应在非 Ok 时丢弃原输出。
 
 SetPlayer 改保存的玩家主开关，SetFollowerGroup 改随从来源总开关。二者写 INI，保留其他已保存配置。SetActor 不移除名单：普通 NPC 开启时添加/启用指定行，队友开启时使用随从个人偏好。已有指定记录和随从偏好同时更新；新指定角色也同步旧随从偏好。关闭未登记普通 NPC 是 NoChange，不新增记录。
+
+2026-10-07 起，菜单个人开关和 NPC 快捷键也使用同一双来源偏好提交逻辑。API V1 ABI 和总开关门控不变；菜单可在总开关关闭时编辑偏好，快捷键开启时会保存并启用对应组。对话面光仍独立。
 
 开启个人灯不会开启整个来源组。队友要求随从组开启，普通 NPC 要求指定组开启，否则返回 SourceDisabled。关闭允许在组关闭时执行。名单/偏好容量不足时整个个人操作不提交，返回 ListFull；个人偏好仍通过保存游戏的 SKSE co-save 持久化。API 不额外显示通知，调用方负责反馈。
 

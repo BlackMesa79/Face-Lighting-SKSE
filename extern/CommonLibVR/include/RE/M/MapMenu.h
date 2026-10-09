@@ -28,9 +28,9 @@ namespace RE
 	// context = kMap
 	class MapMenu :
 #if defined(EXCLUSIVE_SKYRIM_VR)
-		public WorldSpaceMenu,                    // 00000
-		public BSTEventSink<MenuOpenCloseEvent>,  // 00058
-		public IMapCameraCallbacks                // 00060
+		// VR has no IMapCameraCallbacks base; its members start at 0x60.
+		public WorldSpaceMenu,                   // 00000
+		public BSTEventSink<MenuOpenCloseEvent>  // 00058
 #elif !defined(ENABLE_SKYRIM_VR)
 		public IMenu,                             // 00000
 		public BSTEventSink<MenuOpenCloseEvent>,  // 00030
@@ -71,7 +71,7 @@ namespace RE
 
 			RUNTIME_DATA_CONTENT
 		};
-		STATIC_ASSERT_SIZE(RUNTIME_DATA, 0x30430, 0x30430, 0x304B0, 0x30320);
+		STATIC_ASSERT_SIZE(RUNTIME_DATA, 0x30420, 0x30420, 0x304A0, 0x30320);
 
 		struct VR_RUNTIME_DATA
 		{
@@ -82,7 +82,7 @@ namespace RE
 
 			VR_RUNTIME_DATA_CONTENT;
 		};
-		STATIC_ASSERT_SIZE(VR_RUNTIME_DATA, 0x30460, 0x30460, 0x304E0, 0x30350);
+		STATIC_ASSERT_SIZE(VR_RUNTIME_DATA, 0x30450, 0x30450, 0x304D0, 0x30350);
 
 		// Common map data 2 shared by SE/AE and VR
 #define COMMON_MAP_DATA2_CONTENT                                                     \
@@ -171,7 +171,21 @@ namespace RE
 
 #ifndef SKYRIM_CROSS_VR
 		RUNTIME_CAST_ACCESSOR(BSTEventSink<MenuOpenCloseEvent>, AsMenuOpenCloseEventSink, 0x30, 0x58);
-		RUNTIME_CAST_ACCESSOR(IMapCameraCallbacks, AsIMapCameraCallbacks, 0x38, 0x60);
+
+		// VR has no IMapCameraCallbacks subobject, so this is flat-only.
+		[[nodiscard]] inline IMapCameraCallbacks* AsIMapCameraCallbacks() noexcept
+		{
+			if SKYRIM_REL_VR_CONSTEXPR (!REL::Module::IsVR()) {
+				return &REL::RelocateMember<IMapCameraCallbacks>(this, 0x38, 0);
+			} else {
+				return nullptr;
+			}
+		}
+
+		[[nodiscard]] inline const IMapCameraCallbacks* AsIMapCameraCallbacks() const noexcept
+		{
+			return const_cast<MapMenu*>(this)->AsIMapCameraCallbacks();
+		}
 #endif
 
 		[[nodiscard]] inline RUNTIME_DATA* GetRuntimeData() noexcept
@@ -247,14 +261,14 @@ namespace RE
 		}
 		// members
 #if defined(EXCLUSIVE_SKYRIM_FLAT)
-		VR_RUNTIME_DATA_CONTENT;   // 40, 60
-		VR_RUNTIME_DATA2_CONTENT;  // 30460, 30530
+		RUNTIME_DATA_CONTENT;   // 40, 60
+		RUNTIME_DATA2_CONTENT;  // 30460, 30530
 #elif defined(EXCLUSIVE_SKYRIM_VR)
-		RUNTIME_DATA_CONTENT;                     // 40, 60
-		RUNTIME_DATA2_CONTENT;                    // 30460, 30530
+		VR_RUNTIME_DATA_CONTENT;                  // 40, 60
+		VR_RUNTIME_DATA2_CONTENT;                 // 30460, 30530
 #endif
 	};
-	STATIC_ASSERT_SIZE(MapMenu, 0x30560, 0x30560, 0x30650, 0x30);
+	STATIC_ASSERT_SIZE(MapMenu, 0x30598, 0x30598, 0x305f0, 0x30);
 }
 
 // Clean up sub-macros

@@ -1,0 +1,4 @@
+0.9.5 experimental 1 (local test candidate)
+- Updated CommonLibSSE-NG to v11.0.0 for experimental Skyrim 1.7.99 / 1.7.104 compatibility.
+- Added runtime layout, Address Library v5 and SKSE metadata regression checks.
+- Live ambient exclusion remains limited to 1.6.1170. Gameplay validation is pending.

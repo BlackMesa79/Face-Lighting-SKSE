@@ -3,10 +3,9 @@
 
 namespace ActorRuntime {
     inline bool IsDead(const RE::Actor* actor) {
-        // CommonLibVR's TESObjectREFR currently declares an extra Unk_8C slot
-        // even in flat builds. Native actor->IsDead() consequently dispatches
-        // past the SE/AE engine's 0x99 slot. Use the explicit indices from
-        // CommonLibVR/src/RE/A/Actor.cpp instead of the C++ declaration order.
+        // Keep explicit dispatch, matching the pinned upstream Actor.cpp:
+        // SE/AE (including 1.7.x) slot 0x99; VR slot 0x9A.
+        // This also preserves the earlier SE regression protection.
         return REL::RelocateVirtual<decltype(&RE::Actor::IsDead)>(0x99, 0x9A, actor, true);
     }
     inline bool SafeForLight(RE::Actor* actor) {

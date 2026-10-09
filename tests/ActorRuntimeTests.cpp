@@ -21,14 +21,17 @@ int main() {
     struct Layout { REL::Version version; std::size_t state; };
     const Layout layouts[] = {
         {{1, 5, 97, 0}, 0xB8}, {{1, 6, 353, 0}, 0xB8},
-        {{1, 6, 629, 0}, 0xC0}, {{1, 6, 1170, 0}, 0xC0}
+        {{1, 6, 629, 0}, 0xC0}, {{1, 6, 1170, 0}, 0xC0},
+        {{1, 7, 99, 0}, 0xC0}, {{1, 7, 104, 0}, 0xC0}
     };
     for (const auto& layout : layouts) {
         if (!REL::Module::mock(layout.version)) return 1;
         std::array<std::uintptr_t, 0x200> vtable;
         vtable.fill(reinterpret_cast<std::uintptr_t>(&Unexpected));
         vtable[0x99] = reinterpret_cast<std::uintptr_t>(&Dead);
-        alignas(RE::Actor) std::array<std::byte, sizeof(RE::Actor)> storage{};
+        // Multi-runtime C++ Actor is only a partial layout. Reserve the native
+        // object footprint rather than writing runtime fields past sizeof(Actor).
+        alignas(RE::Actor) std::array<std::byte, 0x300> storage{};
         *reinterpret_cast<std::uintptr_t**>(storage.data()) = vtable.data();
         auto* actor = reinterpret_cast<RE::Actor*>(storage.data());
         // Write native byte offsets, never the same C++ base fields being tested.
@@ -59,5 +62,5 @@ int main() {
         dead = true;
         if (!Query(actor) || ActorRuntime::SafeForLight(actor) || wrongSlot) return 1;
     }
-    std::cout << "SE 1.5.97, AE 1.6.353/629/1170 native life-state layouts, poisoned offsets and death dispatch passed.\n";
+    std::cout << "SE 1.5.97, AE 1.6.353/629/1170 and 1.7.99/104 native life-state layouts, poisoned offsets and death dispatch passed.\n";
 }

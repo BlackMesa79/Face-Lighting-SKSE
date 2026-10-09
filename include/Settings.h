@@ -1,4 +1,7 @@
 #pragma once
+#ifdef FACE_LIGHTING_SETTINGS_TESTING
+#include <filesystem>
+#endif
 #include <string>
 
 namespace Settings {
@@ -79,6 +82,9 @@ namespace Settings {
     void Load();
     bool Save(const Values& values);
     bool SetPlayerEnabled(bool enabled);
+#ifdef FACE_LIGHTING_SETTINGS_TESTING
+    void SetPathForTests(const std::filesystem::path& path);
+#endif
 }
 
 

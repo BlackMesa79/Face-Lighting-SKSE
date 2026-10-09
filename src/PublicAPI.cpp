@@ -1,6 +1,8 @@
 #include <SKSE/SKSE.h>
 #include <RE/Skyrim.h>
 #include "FaceLightingAPI.h"
+#include "FaceLightingAPIV2.h"
+#include "LightExclusionProbe.h"
 #include "PublicAPIPolicy.h"
 #include "FaceLight.h"
 #include "ActorRuntime.h"
@@ -11,6 +13,7 @@
 #include <bit>
 #include <algorithm>
 #include <vector>
+#include <cmath>
 
 namespace {
     using namespace FaceLightingAPI;
@@ -190,8 +193,76 @@ namespace {
     }); }
     const Interface api{sizeof(Interface), version, PlayerControl | ActorControl | FollowerList | StatusQuery, 0,
         ContextQuery, Capture, PlayerQuery, ActorQuery, FollowersQuery, Execute};
+
+    Result TemporaryWriteReady() {
+        if (const auto result = Ready(); result != Result::Ok) return result;
+        if (ConfigMenu::IsOpen() || Settings::HasPreview()) return Result::BusyPreview;
+        const auto ui = RE::UI::GetSingleton();
+        return !ui || ui->GameIsPaused() || ui->IsMenuOpen(RE::Console::MENU_NAME) ||
+            ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME) || ui->IsMenuOpen(RE::MainMenu::MENU_NAME) ? Result::Blocked : Result::Ok;
+    }
+    Result ResolveActorV2(std::uint32_t id, ActorState* output) noexcept { return Boundary([&] {
+        if (!id || !ValidOutput(output)) return Result::InvalidArgument;
+        if (const auto result = Ready(); result != Result::Ok) return result;
+        const auto actor = RE::TESForm::LookupByID<RE::Actor>(id);
+        if (!ActorRuntime::SafeForLight(actor)) return Result::InvalidTarget;
+        *output = Describe(actor); return Result::Ok;
+    }); }
+    Result BeginV2(const V2::BeginInfo* info, V2::Session* output) noexcept { return Boundary([&] {
+        if (!info || !output || info->structSize < sizeof(*info) || info->reserved || info->padding ||
+            !std::isfinite(info->leaseSeconds) || info->leaseSeconds < 1 || info->leaseSeconds > 30) return Result::InvalidArgument;
+        if (const auto result = TemporaryWriteReady(); result != Result::Ok) return result;
+        return FaceLight::BeginTemporary(*info, *output);
+    }); }
+    Result UpdateV2(const V2::UpdateInfo* info) noexcept { return Boundary([&] {
+        if (!info || info->structSize < sizeof(*info) || info->reserved || info->paused > 1 ||
+            info->count > V2::maxTargets || (info->count && !info->targets)) return Result::InvalidArgument;
+        if (const auto result = info->paused ? Ready() : TemporaryWriteReady(); result != Result::Ok) return result;
+        return FaceLight::UpdateTemporary(*info);
+    }); }
+    Result RenewV2(const V2::Session* session) noexcept { return Boundary([&] {
+        if (!session) return Result::InvalidArgument;
+        if (const auto result = Ready(); result != Result::Ok) return result;
+        return FaceLight::RenewTemporary(*session);
+    }); }
+    Result EndV2(const V2::Session* session) noexcept { return Boundary([&] {
+        if (!session) return Result::InvalidArgument;
+        if (const auto result = Ready(); result != Result::Ok) return result;
+        return FaceLight::EndTemporary(*session);
+    }); }
+    Result QueryV2(const V2::Session* session, V2::SessionState* output) noexcept { return Boundary([&] {
+        if (!session || !ValidOutput(output)) return Result::InvalidArgument;
+        if (const auto result = Ready(); result != Result::Ok) return result;
+        return FaceLight::QueryTemporary(*session, *output);
+    }); }
+    Result EnvironmentV2(V2::Environment* output) noexcept { return Boundary([&] {
+        if (!ValidOutput(output)) return Result::InvalidArgument;
+        if (const auto result = Ready(); result != Result::Ok) return result;
+        const auto ui = RE::UI::GetSingleton();
+        if (!ui || ui->GameIsPaused() || ConfigMenu::IsOpen() || Settings::HasPreview() || ui->IsMenuOpen(RE::Console::MENU_NAME) ||
+            ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME) || ui->IsMenuOpen(RE::MainMenu::MENU_NAME)) return Result::Blocked;
+        const auto player = RE::PlayerCharacter::GetSingleton();
+        if (!ActorRuntime::SafeForLight(player)) return Result::InvalidTarget;
+        const auto cell = player->GetParentCell();
+        if (!cell || !cell->IsAttached() || !player->Get3D(false)) return Result::NotLoaded;
+        V2::Environment result;
+        result.world = FaceLight::GetContext().session; result.cellID = cell->GetFormID();
+        const auto position = player->GetPosition(); result.x = position.x; result.y = position.y; result.z = position.z;
+        const auto process = player->GetActorRuntimeData().currentProcess;
+        if (process && process->InHighProcess() && process->high && std::isfinite(process->high->lightLevel) && process->high->lightLevel >= 0) {
+            result.flags |= V2::RawValid; result.raw = process->high->lightLevel;
+        }
+        if (const auto filtered = LightExclusionProbe::ReadFiltered(player); filtered && std::isfinite(*filtered) && *filtered >= 0) {
+            result.flags |= V2::FilteredValid; result.filtered = *filtered;
+        }
+        *output = result; return Result::Ok;
+    }); }
+    const V2::Interface apiV2{sizeof(V2::Interface), V2::version, V2::TemporarySessions | V2::RGBColor | V2::EnvironmentQuery, 0,
+        &api, ResolveActorV2, BeginV2, UpdateV2, RenewV2, EndV2, QueryV2, EnvironmentV2};
 }
 
 extern "C" __declspec(dllexport) const FaceLightingAPI::Interface* FaceLighting_GetAPI(std::uint32_t requestedVersion) noexcept {
-    return requestedVersion == FaceLightingAPI::version ? &api : nullptr;
+    if (requestedVersion == FaceLightingAPI::version) return &api;
+    if (requestedVersion == FaceLightingAPI::V2::version) return reinterpret_cast<const FaceLightingAPI::Interface*>(&apiV2);
+    return nullptr;
 }

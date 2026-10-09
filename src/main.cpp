@@ -34,6 +34,8 @@ namespace {
 
 SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SKSE::Init(skse);
+    SKSE::log::info("FaceLighting {}: Skyrim {}, CommonLibSSE-NG v11.0.0 (94faaed0c60e)",
+        FACE_LIGHTING_BUILD_LABEL, REL::Module::get().version().string("."));
     if (!SelectedNPCs::Install()) return false;
     Localization::Load();
     Settings::Load();

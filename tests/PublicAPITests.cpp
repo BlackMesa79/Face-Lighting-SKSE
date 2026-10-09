@@ -1,4 +1,5 @@
 #include "FaceLightingAPI.h"
+#include "FaceLightingAPIV2.h"
 #include "PublicAPIPolicy.h"
 #include "PersonalLightPolicy.h"
 #include "FollowerPreferences.h"
@@ -52,6 +53,44 @@ int main() {
             "full follower preferences partially disabled selected source");
         Check(followers.Set(1000, true) && apply(false) == Result::Ok, "preference capacity did not recover");
 
+        // A legacy save can disagree between the two sources. The hotkey must
+        // turn off either active source, rather than just flip the selected row.
+        selected = {{100, 0}};
+        followers.disabled.clear();
+        Check(PersonalLightPolicy::Enabled(selected, 100, true, true, true, true), "follower-only light ignored");
+        Check(apply(false) == Result::Ok && !PersonalLightPolicy::Enabled(selected, 100, true,
+            followers.Enabled(100), true, true), "legacy follower overlap survived off");
+        selected[0].enabled = 1;
+        Check(PersonalLightPolicy::Enabled(selected, 100, true, false, true, true), "selected-only light ignored");
+        Check(apply(false) == Result::Ok && !followers.Enabled(100) && !selected[0].enabled,
+            "legacy selected overlap survived off");
+        Check(!PersonalLightPolicy::Enabled(selected, 100, true, true, false, false), "disabled groups count as on");
+        Check(!PersonalLightPolicy::Enabled(selected, 100, false, true, true, true), "dismissed actor counted as follower");
+        Check(apply(true) == Result::Ok && apply(false, false) == Result::Ok && !followers.Enabled(100),
+            "dismissed selected actor left a re-recruitment preference enabled");
+
+        // Menu edits remain possible with groups off and without an actor model.
+        Check(apply(true) == Result::Ok && apply(false, true, false) == Result::Ok && !selected[0].enabled,
+            "groups off blocked explicit personal off");
+        selected.clear();
+        Check(apply(true) == Result::Ok && selected.empty(), "follower menu added an unnecessary selected row");
+        bool commitCalled = false;
+        Check(PersonalLightPolicy::Set(selected, 100, false, true, true, true, true, [&](auto id, auto on) {
+            return followers.SetWithCommit(id, on, [&] { commitCalled = true; return false; });
+        }) == Result::ListFull && commitCalled && selected.empty() && followers.Enabled(100),
+            "failed group save published selected or follower changes");
+        // Test a staged off as well: a failed write must not insert a disable preference.
+        selected = {{100, 1}};
+        Check(PersonalLightPolicy::Set(selected, 100, true, true, false, true, true, [&](auto id, auto on) {
+            return followers.SetWithCommit(id, on, [] { return false; });
+        }) == Result::ListFull && selected[0].enabled == 1 && followers.Enabled(100),
+            "failed commit partially disabled an actor");
+        followers.disabled.resize(FollowerPreferences::limit);
+        for (std::uint32_t i = 0; i < FollowerPreferences::limit; ++i) followers.disabled[i] = 1000 + i;
+        commitCalled = false;
+        Check(!followers.SetWithCommit(100, false, [&] { commitCalled = true; return true; }) && !commitCalled,
+            "settings saved before preference capacity validation");
+
         wchar_t executable[MAX_PATH]{};
         GetModuleFileNameW(nullptr, executable, MAX_PATH);
         const auto dll = std::filesystem::path(executable).parent_path() / "FaceLighting.dll";
@@ -59,9 +98,25 @@ int main() {
         auto module = LoadLibraryW(dll.c_str());
         Check(module != nullptr, "cannot load built DLL for ABI smoke test");
         auto getAPI = reinterpret_cast<GetAPI>(GetProcAddress(module, exportName));
-        Check(getAPI && !getAPI(0) && !getAPI(2), "export/version negotiation failed");
+        Check(getAPI && !getAPI(0) && !getAPI(3), "export/version negotiation failed");
         const auto api = getAPI(version);
         Check(api && api->structSize == sizeof(Interface) && api->apiVersion == version, "wrong interface layout");
+        const auto getV2 = reinterpret_cast<V2::GetAPI>(getAPI);
+        const auto apiV2 = getV2(V2::version);
+        Check(apiV2 && apiV2->structSize == sizeof(V2::Interface) && apiV2->apiVersion == 2 && apiV2->v1 == api,
+            "V2 negotiation replaced or changed V1");
+        Check(apiV2->BeginSession(nullptr, nullptr) == Result::InvalidArgument &&
+            apiV2->UpdateSession(nullptr) == Result::InvalidArgument && apiV2->EndSession(nullptr) == Result::InvalidArgument,
+            "V2 null inputs accepted");
+        V2::BeginInfo begin; V2::Session temporary; V2::UpdateInfo update; V2::SessionState sessionState; V2::Environment environment; ActorState v2Actor;
+        Check(apiV2->BeginSession(&begin, &temporary) == Result::WrongThread &&
+            apiV2->UpdateSession(&update) == Result::WrongThread && apiV2->RenewSession(&temporary) == Result::WrongThread &&
+            apiV2->EndSession(&temporary) == Result::WrongThread && apiV2->QuerySession(&temporary, &sessionState) == Result::WrongThread &&
+            apiV2->ResolveActor(100, &v2Actor) == Result::WrongThread && apiV2->GetEnvironment(&environment) == Result::WrongThread,
+            "V2 accessed engine outside game thread");
+        sessionState.structSize = 0; environment.structSize = 0;
+        Check(apiV2->QuerySession(&temporary, &sessionState) == Result::InvalidArgument &&
+            apiV2->GetEnvironment(&environment) == Result::InvalidArgument, "V2 short outputs accepted");
         Check(api->Execute(nullptr) == Result::InvalidArgument && api->QueryPlayer(nullptr) == Result::InvalidArgument,
             "invalid output/request not rejected");
         Context context; ActorState state; Token token{1, 1, 100}; FollowerPage page;

@@ -7,7 +7,7 @@
 #include <vector>
 
 // Internal request priorities; these do not enable any target-selection feature.
-enum class NpcLightSource { Nearby, Selected, Follower, Dialogue };
+enum class NpcLightSource { Nearby, Selected, Follower, Dialogue, External };
 
 // Main-thread only. Each producer renews its requests every frame. Keys must be
 // lifetime-safe actor handles, not raw pointers or reusable FormIDs.
@@ -19,6 +19,7 @@ class NpcLightManager {
         Parameters parameters;
         bool transition;
         float duration;
+        bool visible = true;
     };
     struct Entry {
         Request request;
@@ -42,14 +43,14 @@ public:
     NpcLightManager(const NpcLightManager&) = delete;
     NpcLightManager& operator=(const NpcLightManager&) = delete;
     void BeginFrame() { requests.clear(); }
-    void Submit(const Key& actor, NpcLightSource source, const Parameters& parameters, bool transition, float duration) {
+    void Submit(const Key& actor, NpcLightSource source, const Parameters& parameters, bool transition, float duration, bool visible = true) {
         for (auto& request : requests) {
             if (request.actor == actor && request.source == source) {
-                request = {actor, source, parameters, transition, duration};
+                request = {actor, source, parameters, transition, duration, visible};
                 return;
             }
         }
-        requests.push_back({actor, source, parameters, transition, duration});
+        requests.push_back({actor, source, parameters, transition, duration, visible});
     }
     // Keep outgoing lights responsive to the existing dialogue preview controls.
     void RefreshSource(NpcLightSource source, const Parameters& parameters, bool transition, float duration) {
@@ -64,6 +65,13 @@ public:
         entries.clear();
         requests.clear();
     }
+    void DropSource(NpcLightSource source) {
+        std::erase_if(requests, [source](const auto& request) { return request.source == source; });
+        std::erase_if(entries, [source](auto& entry) {
+            if (entry->request.source != source) return false;
+            entry->light.Clear(); return true;
+        });
+    }
     std::size_t Size() const { return entries.size(); }
     const Light* Find(const Key& actor) const {
         for (const auto& entry : entries) if (entry && entry->request.actor == actor) return &entry->light;
@@ -77,17 +85,17 @@ public:
     // would still consume renderer resources. Preferences are never changed.
     void Protect(std::size_t secondaryLimit, bool dialogueOpen = false, const Key* fadingDialogue = nullptr) {
         std::stable_sort(requests.begin(), requests.end(), [](const auto& a, const auto& b) { return a.source > b.source; });
-        const bool dialogue = dialogueOpen || std::any_of(requests.begin(), requests.end(), [](const auto& r) { return r.source == NpcLightSource::Dialogue; });
+        const bool dialogue = dialogueOpen || std::any_of(requests.begin(), requests.end(), [](const auto& r) { return r.source >= NpcLightSource::Dialogue; });
         std::vector<Key> accepted;
         std::vector<Key> denied;
         std::size_t secondary = 0;
         for (const auto& request : requests) {
             if (std::find(accepted.begin(), accepted.end(), request.actor) != accepted.end() ||
                 std::find(denied.begin(), denied.end(), request.actor) != denied.end()) continue;
-            if (request.source == NpcLightSource::Dialogue ||
+            if (request.source >= NpcLightSource::Dialogue ||
                 (!dialogue && secondary < secondaryLimit)) {
                 accepted.push_back(request.actor);
-                if (request.source != NpcLightSource::Dialogue) ++secondary;
+                if (request.source < NpcLightSource::Dialogue) ++secondary;
             } else denied.push_back(request.actor);
         }
         std::erase_if(requests, [&](const auto& r) { return std::find(denied.begin(), denied.end(), r.actor) != denied.end(); });
@@ -128,9 +136,12 @@ public:
             if (Winner(request.actor) != &request) continue;
             auto found = std::find_if(entries.begin(), entries.end(), [&](const auto& entry) { return entry->request.actor == request.actor; });
             if (found != entries.end()) {
-                (*found)->request = request;
+                auto updated = request;
+                if (!request.visible) updated.parameters = (*found)->request.parameters;
+                (*found)->request = updated;
                 continue;
             }
+            if (!request.visible) continue; // Suppress lower sources without creating an invisible scene object.
             if (capacity == 0) continue;
             if (entries.size() >= capacity) {
                 // Prefer outgoing lights, then preempt a lower-priority active actor.
@@ -158,7 +169,8 @@ public:
         });
         for (auto it = entries.begin(); it != entries.end();) {
             auto& entry = **it;
-            const bool visible = Winner(entry.request.actor) != nullptr;
+            const auto winner = Winner(entry.request.actor);
+            const bool visible = winner && winner->visible;
             entry.fade.Update(visible, entry.request.transition, entry.request.duration, delta);
             if (!visible && entry.fade.value <= 0) {
                 entry.light.Clear();

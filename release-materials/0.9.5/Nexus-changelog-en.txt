@@ -1,0 +1,5 @@
+Version 0.9.5
+
+- Updated CommonLibSSE-NG for Skyrim 1.7.99 / 1.7.104 compatibility (awaiting user testing).
+- Retained SE 1.5.97 support; 1.6.1170 and Favorite Wheel integration tested successfully.
+- Live ambient exclusion remains limited to 1.6.1170.

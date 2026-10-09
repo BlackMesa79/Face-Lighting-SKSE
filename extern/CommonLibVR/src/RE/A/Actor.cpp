@@ -102,6 +102,13 @@ namespace RE
 		return func(this, a_faction, a_rank);
 	}
 
+	void Actor::AdvanceSleepWaitTick()
+	{
+		using func_t = decltype(&Actor::AdvanceSleepWaitTick);
+		static REL::Relocation<func_t> func{ RELOCATION_ID(39410, 40485) };
+		return func(this);
+	}
+
 	void Actor::AllowBleedoutDialogue(bool a_canTalk)
 	{
 		if (a_canTalk) {
@@ -189,6 +196,13 @@ namespace RE
 		return _race->AllowsPickpocket() && !IsPlayerTeammate();
 	}
 
+	bool Actor::CanSleepWait(TESObjectREFR* a_bed) const
+	{
+		using func_t = decltype(&Actor::CanSleepWait);
+		static REL::Relocation<func_t> func{ RELOCATION_ID(39371, 40443) };
+		return func(this, a_bed);
+	}
+
 	bool Actor::CanTalkToPlayer() const
 	{
 		auto xTalk = extraList.GetByType<ExtraCanTalkToPlayer>();
@@ -212,6 +226,13 @@ namespace RE
 		using func_t = decltype(&Actor::CastPermanentMagic);
 		static REL::Relocation<func_t> func{ RELOCATION_ID(37804, 38753) };
 		return func(this, a_wornItemEnchantments, a_baseSpells, a_raceSpells, a_everyActorAbility);
+	}
+
+	void Actor::ChangeHeadPart(BGSHeadPart* a_oldPart, BGSHeadPart* a_newPart)
+	{
+		using func_t = decltype(&Actor::ChangeHeadPart);
+		static REL::Relocation<func_t> func{ REL::RelocationID(26468, 27063) };
+		return func(this, a_oldPart, a_newPart);
 	}
 
 	void Actor::ClearArrested()
@@ -434,6 +455,13 @@ namespace RE
 	{
 		auto* _currentProcess = GetActorRuntimeData().currentProcess;
 		return _currentProcess ? _currentProcess->GetCommandingActor().get() : NiPointer<Actor>{};
+	}
+
+	bool Actor::GetControllingActor(NiPointer<Actor>& a_out)
+	{
+		using func_t = decltype(&Actor::GetControllingActor);
+		static REL::Relocation<func_t> func{ RELOCATION_ID(37762, 38707) };
+		return func(this, a_out);
 	}
 
 	TESFaction* Actor::GetCrimeFaction()
@@ -1204,7 +1232,7 @@ namespace RE
 	void Actor::RefreshEquippedActorValueCharge(const RE::TESForm* a_object, const RE::ExtraDataList* a_extraList, bool a_isLeft)
 	{
 		using func_t = decltype(&Actor::RefreshEquippedActorValueCharge);
-		static REL::Relocation<func_t> func{ RELOCATION_ID(38752, 37803) };
+		static REL::Relocation<func_t> func{ RELOCATION_ID(37803, 38752) };
 		return func(this, a_object, a_extraList, a_isLeft);
 	}
 
@@ -1338,6 +1366,13 @@ namespace RE
 		using func_t = decltype(&Actor::StartCombat);
 		static REL::Relocation<func_t> func{ RELOCATION_ID(37608, 38561) };
 		return func(this, a_target, a_combatGroup);
+	}
+
+	void Actor::StartSleeping(std::int32_t a_hours)
+	{
+		using func_t = decltype(&Actor::StartSleeping);
+		static REL::Relocation<func_t> func{ RELOCATION_ID(39343, 40414) };
+		return func(this, a_hours);
 	}
 
 	void Actor::StealAlarm(TESObjectREFR* a_ref, TESForm* a_object, std::int32_t a_num, std::int32_t a_total, TESForm* a_owner, bool a_allowWarning)
@@ -1625,12 +1660,12 @@ namespace RE
 
 	NiNode* Actor::GetFireNode()
 	{
-		return RelocateVirtual<decltype(&Actor::GetFireNode)>(0x8C, 0x8D, this);
+		return RelocateVirtual<decltype(&Actor::GetFireNode)>(0x8B, 0x8C, this);
 	}
 
 	void Actor::SetFireNode(NiNode* a_fireNode)
 	{
-		RelocateVirtual<decltype(&Actor::SetFireNode)>(0x8D, 0x8E, this, a_fireNode);
+		RelocateVirtual<decltype(&Actor::SetFireNode)>(0x8C, 0x8D, this, a_fireNode);
 	}
 
 	bool Actor::OnAddCellPerformQueueReference(TESObjectCELL& a_cell) const
@@ -1680,7 +1715,7 @@ namespace RE
 
 	TESAmmo* Actor::GetCurrentAmmo() const
 	{
-		return RelocateVirtual<decltype(&Actor::GetCurrentAmmo)>(0x9F, 0xA0, this);
+		return RelocateVirtual<decltype(&Actor::GetCurrentAmmo)>(0x9E, 0x9F, this);
 	}
 
 	void Actor::UnequipItem(std::uint64_t a_arg1, TESBoundObject* a_object)
@@ -1705,7 +1740,7 @@ namespace RE
 
 	void Actor::SetAvoidanceDisabled(bool a_set)
 	{
-		RelocateVirtual<decltype(&Actor::SetAvoidanceDisabled)>(0x0A5, 0x0A6, this, a_set);
+		RelocateVirtual<decltype(&Actor::SetAvoidanceDisabled)>(0x0A5, 0x0A7, this, a_set);
 	}
 
 	void Actor::DrawWeaponMagicHands(bool a_draw)

@@ -21,6 +21,7 @@ int main() {
         const auto testRoot = std::filesystem::current_path() / "build" / "settings-test";
         std::filesystem::create_directories(testRoot / "Data/SKSE/Plugins");
         std::filesystem::current_path(testRoot);
+        Settings::SetPathForTests(testRoot / "Data/SKSE/Plugins/FaceLighting.ini");
         const Settings::Values defaults;
         Check(defaults.npcLightLimit == 4, "NPC budget preserves previous default");
         Settings::Values requested;
@@ -256,13 +257,50 @@ int main() {
             ambientClean.ambientDelay == 0.5f, "ambient thresholds ordered and malformed values sanitized");
         std::filesystem::create_directories(testRoot / "blocked/Data/SKSE");
         { std::ofstream file(testRoot / "blocked/Data/SKSE/Plugins"); file << "blocked"; }
-        std::filesystem::current_path(testRoot / "blocked");
+        Settings::SetPathForTests(testRoot / "blocked/Data/SKSE/Plugins/FaceLighting.ini");
         Check(!Settings::SetPlayerEnabled(!clamped.enabled), "dialogue write failure reported");
         Check(Settings::Get() == clamped, "failed dialogue write leaves saved state intact");
         Check(!Settings::Save(requested), "save failure reported");
         Check(Settings::Get() == clamped && Settings::GetActive() == clamped, "save failure rolls back preview");
         Settings::Load();
         Check(Settings::Get() == defaults, "missing INI uses defaults");
+
+        // Fresh install under a Unicode path with no parent directories or INI.
+        const auto unicodeRoot = testRoot / L"fresh-\u9762\u5149";
+        const auto unicodeIni = unicodeRoot / "Data/SKSE/Plugins/FaceLighting.ini";
+        std::filesystem::remove_all(unicodeRoot);
+        Settings::SetPathForTests(unicodeIni);
+        Settings::Load();
+        Check(Settings::Get() == defaults && !std::filesystem::exists(unicodeIni), "load missing settings without writing defaults");
+        Check(Settings::Save(requested), "fresh Unicode-path save creates parents and INI");
+        Check(std::filesystem::exists(unicodeIni), "fresh INI created at anchored path");
+        Settings::Load();
+        Check(Settings::Get() == Settings::Normalize(requested), "Unicode-path configuration round trip");
+
+        // Another plugin may change the process working directory after startup.
+        const auto other = testRoot / "different-working-directory";
+        std::filesystem::create_directories(other / "Data/SKSE/Plugins");
+        const auto decoy = other / "Data/SKSE/Plugins/FaceLighting.ini";
+        { std::ofstream file(decoy); file << "[General]\nRadius=321\nIntensity=4\n"; }
+        std::filesystem::current_path(other);
+        Settings::Load();
+        Check(Settings::Get() == Settings::Normalize(requested), "changed working directory does not redirect reads");
+        auto updated = requested; updated.radius = 199;
+        Check(Settings::Save(updated), "changed working directory does not redirect full save");
+        Check(Settings::SetPlayerEnabled(!updated.enabled), "changed working directory does not redirect single-key save");
+        updated.enabled = !updated.enabled;
+        Settings::Load();
+        Check(Settings::Get() == Settings::Normalize(updated), "single-key save keeps other configuration values");
+        std::ifstream decoyFile(decoy);
+        const std::string decoyText((std::istreambuf_iterator<char>(decoyFile)), {});
+        Check(decoyText == "[General]\nRadius=321\nIntensity=4\n", "unrelated INI untouched");
+        const auto singleRoot = testRoot / "single-key-first-save";
+        std::filesystem::remove_all(singleRoot);
+        Settings::SetPathForTests(singleRoot / "Data/SKSE/Plugins/FaceLighting.ini");
+        Settings::Load();
+        Check(Settings::SetPlayerEnabled(true), "single-key initial save creates missing parent directories");
+        Settings::Load();
+        Check(Settings::Get().enabled, "single-key initial save persists player switch");
         std::cout << "Settings persistence, preview/rollback, migration and numeric validation passed.\n";
         return 0;
     } catch (const std::exception& error) {

@@ -7,6 +7,22 @@ Adjustable face lighting for Skyrim Special Edition and Anniversary Edition,
 with SKSE Menu Framework settings and optional Community Shaders integration.
 No ESP or Papyrus scripts are required.
 
+## Version 0.9.7 compatibility
+
+Version `0.9.7` pins CommonLibSSE-NG v11.0.0
+(`94faaed0c60eddd8347767f2d4d29a97c93bde8c`) and targets Skyrim 1.7.99 / 1.7.104.
+SE 1.5.97 support is retained. Local 1.6.1170 gameplay testing and Favorite Wheel
+integration passed. Matching SKSE64, Address Library v5 and a compatible SKSE Menu
+Framework build are required for 1.7.x; gameplay testing on those runtimes is pending. Live ambient light
+exclusion remains restricted to 1.6.1170; fixed compensation can be tested on 1.7.x.
+See [migration review and test plan](docs/commonlib-1.7-experimental-review.md).
+The existing release files are retained.
+
+Version 0.9.6 unifies personal NPC/follower switches and hotkeys to prevent one
+lighting source from keeping a character lit after the other is turned off.
+Dialogue remains independent. Configuration reads and writes now use an absolute
+Unicode path anchored to the game executable, creating missing folders on save.
+
 ## Version 0.9
 
 0.9 adds selected NPC lists, automatic follower lighting, optional first-person player lighting, automatic lighting in dark environments, and a redesigned configuration menu.
@@ -17,10 +33,12 @@ See [Changelog](CHANGELOG.md) for this release and the backfilled 0.9.2 / 0.9.3 
 
 ## Features
 
+- API V2 adds leased temporary lighting for conversation integrations while preserving V1. It provides per-actor color, brightness and placement, pause/resume and automatic cleanup. See [English integration guide](docs/public-api-v2-en.md) and [中文说明](docs/public-api-v2-zh-CN.md). Available from 0.9.7; CCC still needs to call the API to enable its integration.
 - Separate settings for player, dialogue NPC, selected NPC and follower lighting: intensity, position, radius/range, head rotation and 2000–10000 K color temperature.
 - Aim at an NPC and press **Shift+L** to add and enable its light; press again to toggle. Crosshair and console targets can also be added from the menu. Up to 32 selected NPCs per save.
 - Automatically light recruited player teammates, with individual follower switches. Loaded followers share a configurable simultaneous light budget with selected NPCs (1-32, default 4). Custom followers need the player-teammate flag; use the selected list otherwise. Ashe – Crystal Heart was recognized in user testing; this is not a guarantee for all custom followers.
 - A single light per NPC, with dialogue first, followers next and selected NPCs last. The NPC menu provides a shared simultaneous light limit of 1-32 (default 4), separate from player lighting and the 32-entry selected roster. During dialogue, only the player and current speaker lights remain.
+- Personal switches in both rosters and the NPC hotkey synchronize follower and selected preferences for the same actor. Dialogue lighting remains independent; save the game to retain personal choices. The hotkey uses the follower roster for teammates and adds ordinary NPCs to the selected list.
 - Optional first-person player light; smooth player transitions default to 0.2 seconds.
 - Optional dark-environment player control: fixed compensation or live exclusion of this mod's player/NPC lights. Live exclusion requires the verified **Skyrim 1.6.1170 code layout**, saving settings and restarting. It is not available on 1.5.97. Unknown or stale readings pause decisions; there is no automatic fallback to compensation.
 - Optional dialogue ambient control has independent mode, thresholds and delay (disabled by default), using the player-position lighting sample even when player automatic control is off. It keeps bright conversations off, fades on after sustained darkness, and prevents follower/selected sources from bypassing the decision. See [usage and sampling limits](docs/dialogue-ambient-control.md). This is not a direct NPC face/sunlight measurement.
@@ -35,7 +53,7 @@ These are shadowless point lights, not skin-only lighting. They can illuminate n
 
 ## Requirements and validation
 
-Windows x64, matching SKSE64 and Address Library. SKSE Menu Framework is needed for the in-game menu. Community Shaders is optional; ENB is not validated. VR and Skyrim 1.7.x are not supported.
+Windows x64, matching SKSE64 and Address Library. SKSE Menu Framework is needed for the in-game menu. Community Shaders is optional; ENB is not validated. VR is not supported. Skyrim 1.7.99 / 1.7.104 compatibility is available for user testing; gameplay validation on those runtimes is pending.
 
 Core lighting was previously tested on 1.5.97; the 0.9 feature testing was performed on 1.6.1170. Do not infer that every new feature has been retested on every SE/AE runtime. Live exclusion is restricted to the verified 1.6.1170 layout and may be unavailable if another plugin changes that code.
 
@@ -92,7 +110,7 @@ $tests = @('SettingsTests', 'LightPlacementTests', 'CSLightingTests',
     'LocalizationTests', 'PlayerDialogueTests', 'NpcLightManagerTests',
     'SelectedNPCRecordTests', 'ActorRuntimeTests', 'FollowerRosterTests',
     'AmbientPolicyTests', 'LightCallScanTests', 'PlayerTransitionTests', 'ExclusionTotalsTests',
-    'PublicAPITests', 'DialogueAmbientTests')
+    'PublicAPITests', 'DialogueAmbientTests', 'RuntimeCompatibilityTests', 'TemporarySessionTests')
 foreach ($test in $tests) {
     & "./build/windows/x64/releasedbg/$test.exe"
     if ($LASTEXITCODE -ne 0) { throw "$test failed" }

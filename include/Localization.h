@@ -140,7 +140,7 @@ namespace Localization {
     inline constexpr Text selectedTitle{"selectedTitle", "Selected NPCs"};
     inline constexpr Text selectedEnabled{"selectedEnabled", "Enable selected NPC lighting"};
     inline constexpr Text selectedHelp{"selectedHelp", "These settings apply to all selected NPCs. Dialogue lighting takes priority during conversations."};
-    inline constexpr Text rosterHelp{"rosterHelp", "Aim at an NPC before opening this menu, or select one in the console first. List changes apply immediately and are stored when you save the game. Up to 32 NPCs per save."};
+    inline constexpr Text rosterHelp{"rosterHelp", "Aim before opening the menu, or select in the console. Personal switches control selected and follower sources together; dialogue is separate. Save the game to retain changes. Up to 32 selected NPCs."};
     inline constexpr Text addCrosshair{"addCrosshair", "Add crosshair target"};
     inline constexpr Text addConsole{"addConsole", "Add console target"};
     inline constexpr Text noTarget{"noTarget", "No valid NPC selected"};
@@ -158,7 +158,7 @@ namespace Localization {
     inline constexpr Text sectionPreferences{"sectionPreferences", "Preferences"};
     inline constexpr Text sectionActions{"sectionActions", "Settings"};
     inline constexpr Text selectedHotkey{"selectedHotkey", "Selected NPC shortcut###selectedHotkey"};
-    inline constexpr Text selectedHotkeyHelp{"selectedHotkeyHelp", "Shift+L: aim to add and enable; press again to toggle. Also enables the selected group. Overrides an identical player binding."};
+    inline constexpr Text selectedHotkeyHelp{"selectedHotkeyHelp", "Shift+L toggles personal lighting for the aimed NPC or follower. Enabling adds ordinary NPCs and enables the relevant group. Overrides an identical player binding."};
     inline constexpr Text followerTitle{"followerTitle", "Follower face light"};
     inline constexpr Text followerEnabled{"followerEnabled", "Enable follower face lighting"};
     inline constexpr Text followerHelp{"followerHelp", "Tracks teammates every 0.5 seconds; waiting followers remain, dismissed ones leave. Priority: dialogue > followers > selected. Unrecognized custom followers can use the selected list."};
@@ -170,7 +170,7 @@ namespace Localization {
     inline constexpr Text probeWaiting{"probeWaiting", "Waiting for a gameplay sample. Close this menu to sample."};
     inline constexpr Text probeMark{"probeMark", "Mark latest sample in log"};
     inline constexpr Text followerRowEnabled{"followerRowEnabled", "Enable this follower light"};
-    inline constexpr Text followerRowHelp{"followerRowHelp", "Applies immediately; save the game to retain it after re-recruitment. Only affects follower lighting, not selected or dialogue sources."};
+    inline constexpr Text followerRowHelp{"followerRowHelp", "Controls follower and selected sources together; dialogue is separate. Applies immediately. Save the game to retain the choice after re-recruitment."};
     inline constexpr Text noticeFollowersAdded{"noticeFollowersAdded", "Face Lighting: followers registered"};
     inline constexpr Text noticeFollowerOn{"noticeFollowerOn", "Face Lighting: follower light enabled"};
     inline constexpr Text noticeFollowerOff{"noticeFollowerOff", "Face Lighting: follower light disabled"};

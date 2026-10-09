@@ -3,6 +3,13 @@
 #include "SelectedNPCRecord.h"
 
 namespace PersonalLightPolicy {
+    inline bool Enabled(const std::vector<SelectedNPCRecord::Record>& rows, std::uint32_t id,
+        bool follower, bool followerEnabled, bool followerGroup, bool selectedGroup) {
+        return (follower && followerEnabled && followerGroup) ||
+            (selectedGroup && std::any_of(rows.begin(), rows.end(), [id](const auto& row) {
+                return row.id == id && row.enabled;
+            }));
+    }
     // Caller serializes source preferences. Stage all allocating changes before committing.
     template <class SetFollower>
     FaceLightingAPI::Result Set(std::vector<SelectedNPCRecord::Record>& rows, std::uint32_t id,

@@ -17,6 +17,7 @@ namespace SelectedNPCs {
     void ToggleCrosshairTarget();
     void Remove(RE::FormID id);
     void SetEnabled(RE::FormID id, bool enabled);
+    void SetFollowerEnabled(RE::FormID id, bool enabled);
     std::optional<bool> PersonalEnabled(RE::FormID id);
     FaceLightingAPI::Result SetPersonalNow(RE::Actor* actor, bool enabled);
     // Called on the game thread; never loads actors or scans the world.

@@ -1,14 +1,13 @@
 #include <SKSE/SKSE.h>
 #include "Followers.h"
+#include "SelectedNPCs.h"
 #include "ActorRuntime.h"
 #include "FollowerRoster.h"
 #include "FollowerPreferences.h"
-#include "FaceLight.h"
 #include "Notifications.h"
 #include <algorithm>
 #include <chrono>
 #include <mutex>
-#include <atomic>
 #include <unordered_set>
 
 namespace {
@@ -16,7 +15,6 @@ namespace {
     std::vector<Followers::Row> rows;
     std::mutex viewMutex;
     FollowerPreferences preferences;
-    std::atomic<std::uint64_t> epoch{0};
     std::unordered_set<RE::FormID> announced;
     constexpr std::uint32_t preferencesRecord = 0x464C5052;
     std::chrono::steady_clock::time_point nextScan{};
@@ -30,7 +28,6 @@ namespace {
 }
 void Followers::Reset() {
     std::scoped_lock lock(viewMutex);
-    ++epoch;
     members.clear();
     nextScan = {};
     rows.clear();
@@ -89,22 +86,10 @@ std::vector<Followers::Row> Followers::Snapshot() {
     return rows;
 }
 void Followers::SetEnabled(RE::FormID id, bool enabled) {
-    const auto session = epoch.load();
-    if (const auto tasks = SKSE::GetTaskInterface()) tasks->AddTask([session, id, enabled] {
-        {
-            std::scoped_lock lock(viewMutex);
-            if (session != epoch.load()) return;
-            const auto row = std::find_if(rows.begin(), rows.end(), [id](const auto& value) { return value.id == id; });
-            if (row == rows.end()) return;
-            if (!preferences.Set(id, enabled)) { Notifications::Show(Localization::noticeSaveFailed); return; }
-            row->enabled = enabled;
-            Notifications::Show(enabled ? Localization::noticeFollowerOn : Localization::noticeFollowerOff, row->name);
-        }
-        FaceLight::RequestUpdate();
-    });
+    // The shared task locks selected preferences before follower preferences.
+    SelectedNPCs::SetFollowerEnabled(id, enabled);
 }
 void Followers::RevertPreferences() {
-    ++epoch;
     std::scoped_lock lock(viewMutex);
     preferences.disabled.clear(); announced.clear();
     members.clear(); rows.clear(); nextScan = {};
@@ -114,10 +99,11 @@ bool Followers::PersonalEnabled(RE::FormID id) {
     return preferences.Enabled(id);
 }
 bool Followers::SetPersonalNow(RE::FormID id, bool enabled) {
+    return SetPersonalWithCommit(id, enabled, {});
+}
+bool Followers::SetPersonalWithCommit(RE::FormID id, bool enabled, const std::function<bool()>& beforeCommit) {
     std::scoped_lock lock(viewMutex);
-    auto updated = preferences;
-    if (!updated.Set(id, enabled)) return false;
-    preferences.disabled.swap(updated.disabled);
+    if (!preferences.SetWithCommit(id, enabled, [&] { return !beforeCommit || beforeCommit(); })) return false;
     for (auto& row : rows) if (row.id == id) row.enabled = enabled;
     return true;
 }

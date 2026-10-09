@@ -23,14 +23,33 @@ namespace RE
 		struct LocalMapCullingProcess  // actually: LocalMapRenderer
 		{
 		public:
-			// Common renderer data shared by SE/AE and VR (at different offsets)
-#define RENDERER_DATA_CONTENT                                                              \
-	LocalMapCamera                 camera;                /* 30260 (SE/AE) / 30270 (VR) */ \
-	NiPointer<BSShaderAccumulator> accumulator;           /* 302C8 (SE/AE) / 302D8 (VR) */ \
-	ImageSpaceShaderParam          imageSpaceShaderParam; /* 302D0 (SE/AE) / 302E0 (VR) */ \
-	std::uint32_t                  renderTarget;          /* 30350 (SE/AE) / 30360 (VR) */ \
-	std::uint32_t                  renderMode;            /* 30354 (SE/AE) / 30364 (VR) */ \
-	NiPointer<NiNode>              unk30358;              /* 30358 (SE/AE) / 30368 (VR) */
+			// ImageSpaceShaderParam is 0x88 on VR, but only 0x80 in a cross-runtime
+			// build, where its VR-only tail is not declared. The VR renderer layout
+			// below must still reserve 0x88 in every build.
+			struct VR_IMAGESPACE_SHADER_PARAM
+			{
+				ImageSpaceShaderParam param;  // 00
+#if !defined(EXCLUSIVE_SKYRIM_VR)
+				std::uint64_t padVrExtension;  // 80
+#endif
+			};
+
+			// SE/AE renderer data.
+#define RENDERER_DATA_CONTENT                                                             \
+	LocalMapCamera                 camera;                /* 30260 (SE/AE) */             \
+	NiPointer<BSShaderAccumulator> accumulator;           /* 302C8 (SE/AE) */             \
+	ImageSpaceShaderParam          imageSpaceShaderParam; /* 302D0 (SE/AE) - 0x80 here */ \
+	std::uint32_t                  renderTarget;          /* 30350 (SE/AE) */             \
+	std::uint32_t                  renderMode;            /* 30354 (SE/AE) */             \
+	NiPointer<NiNode>              unk30358;              /* 30358 (SE/AE) */
+
+			// VR renderer data. ImageSpaceShaderParam is 0x88 here, so the flat
+			// renderTarget/renderMode pair has no room and does not exist on VR.
+#define VR_RENDERER_DATA_CONTENT                                                                 \
+	LocalMapCamera                 camera;                /* 30270 (VR) */                       \
+	NiPointer<BSShaderAccumulator> accumulator;           /* 302D8 (VR) */                       \
+	VR_IMAGESPACE_SHADER_PARAM     imageSpaceShaderParam; /* 302E0 (VR) - 0x88 in every build */ \
+	NiPointer<NiNode>              unk30368;              /* 30368 (VR) */
 
 			// VR-specific additional renderer data
 #define VR_EXTRA_RENDERER_DATA_CONTENT    \
@@ -52,9 +71,14 @@ namespace RE
 			// VR renderer data with extra arrays
 			struct VR_RENDERER_DATA
 			{
-				RENDERER_DATA_CONTENT
+				VR_RENDERER_DATA_CONTENT
 				VR_EXTRA_RENDERER_DATA_CONTENT
 			};
+
+			// These must hold in every preset, including cross-runtime builds.
+			static_assert(offsetof(VR_RENDERER_DATA, imageSpaceShaderParam) == 0x70);
+			static_assert(offsetof(VR_RENDERER_DATA, unk30368) == 0xF8);
+			static_assert(sizeof(VR_RENDERER_DATA) == 0x168);
 
 			[[nodiscard]] inline RENDERER_DATA* GetRendererData() noexcept
 			{
@@ -107,23 +131,19 @@ namespace RE
 			BSCullingJob     cullingJob;      // 301F8
 #if !defined(SKYRIM_CROSS_VR)
 #	if defined(EXCLUSIVE_SKYRIM_FLAT)
-			std::uint64_t unk30250;  // 30250
-			std::uint64_t unk30258;  // 30258
 			RENDERER_DATA_CONTENT
 #	elif defined(EXCLUSIVE_SKYRIM_VR)
-			std::uint64_t unk30250;  // 30250
-			std::uint64_t unk30258;  // 30258
 			std::uint64_t unk30260;  // 30260
 			std::uint64_t unk30268;  // 30268
-			RENDERER_DATA_CONTENT
+			VR_RENDERER_DATA_CONTENT
 			VR_EXTRA_RENDERER_DATA_CONTENT
 #	endif
 #endif
 		};
 #if defined(EXCLUSIVE_SKYRIM_FLAT)
-		static_assert(sizeof(LocalMapCullingProcess) == 0x30370);
+		static_assert(sizeof(LocalMapCullingProcess) == 0x30360);
 #elif defined(EXCLUSIVE_SKYRIM_VR)
-		static_assert(sizeof(LocalMapCullingProcess) == 0x303E8);
+		static_assert(sizeof(LocalMapCullingProcess) == 0x303D8);
 #else
 		static_assert(sizeof(LocalMapCullingProcess) == 0x30260);  // Cross-VR: only base members (cullingProcess + cullingJob), use accessors for runtime data
 #endif
@@ -138,7 +158,7 @@ namespace RE
 
 			// override (MenuEventHandler)
 			bool CanProcess(InputEvent* a_event) override;  // 01
-#ifndef SKYRIM_CROSS_VR
+#ifdef EXCLUSIVE_SKYRIM_VR
 			bool ProcessThumbstick(ThumbstickEvent* a_event) override;  // 03 (VR 06)
 			bool ProcessMouseMove(MouseMoveEvent* a_event) override;    // 04 (VR 07)
 			bool ProcessButton(ButtonEvent* a_event) override;          // 05 (VR 08)
@@ -180,8 +200,9 @@ namespace RE
 		std::uint32_t pad3047C;  // 3047C
 #endif
 	};
-	STATIC_ASSERT_SIZE(LocalMapMenu, 0x30410, 0x30410, 0x30490, 0x30300);
+	STATIC_ASSERT_SIZE(LocalMapMenu, 0x30400, 0x30400, 0x30480, 0x30300);
 }
 
 #undef RENDERER_DATA_CONTENT
+#undef VR_RENDERER_DATA_CONTENT
 #undef VR_EXTRA_RENDERER_DATA_CONTENT
